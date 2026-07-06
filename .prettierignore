@@ -3,3 +3,4 @@ dist/
 .astro/
 pnpm-lock.yaml
 packages/db/drizzle/
+.claude/

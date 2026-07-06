@@ -13,6 +13,7 @@ export default tseslint.config(
       "**/*.astro",
       "**/*.d.ts",
       "packages/db/drizzle/**",
+      ".claude/**",
     ],
   },
   js.configs.recommended,

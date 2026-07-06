@@ -1,9 +1,9 @@
 ---
 import { desc, eq } from "drizzle-orm";
 import { schema } from "@specpasa/db";
-import Base from "../../../layouts/Base.astro";
-import { getDb } from "../../../lib/db";
-import { t } from "../../../lib/strings";
+import Base from "../../../../layouts/Base.astro";
+import { getDb } from "../../../../lib/db";
+import { t } from "../../../../lib/strings";
 
 const db = getDb();
 const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
@@ -36,7 +36,7 @@ const versions = await db
         versions.map((version) => (
           <li>
             <a
-              href={`/specs/${spec.id}/v/${version.number}`}
+              href={`/specs/${spec.id}/versions/${version.number}`}
               class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
             >
               <span class="font-mono font-semibold">v{version.number}</span>

@@ -10,3 +10,4 @@ data/*.db
 data/*.db-*
 .DS_Store
 *.tsbuildinfo
+.claude/worktrees/
