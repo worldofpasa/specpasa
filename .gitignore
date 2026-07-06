@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.astro/
+coverage/
+*.local
+.env
+.env.*
+!.env.example
+data/*.db
+data/*.db-*
+.DS_Store
+*.tsbuildinfo

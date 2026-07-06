@@ -1,0 +1,28 @@
+services:
+  app:
+    build: .
+    ports:
+      - "4321:4321"
+    environment:
+      # SQLite file in the mounted volume by default; point at the postgres
+      # service (profile below) for the team setup.
+      DATABASE_URL: ${DATABASE_URL:-file:/app/data/specpasa.db}
+      SPECPASA_SECRET: ${SPECPASA_SECRET:?set SPECPASA_SECRET in .env}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:4321}
+    volumes:
+      - ./data:/app/data
+
+  postgres:
+    image: postgres:17-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: specpasa
+      POSTGRES_USER: specpasa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-specpasa}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
