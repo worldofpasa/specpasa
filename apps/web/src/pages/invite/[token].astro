@@ -1,0 +1,63 @@
+---
+import { actions } from "astro:actions";
+import { eq } from "drizzle-orm";
+import { schema } from "@specpasa/db";
+import Base from "../../layouts/Base.astro";
+import { getDb } from "../../lib/db";
+import { t } from "../../lib/strings";
+
+const db = getDb();
+const [invite] = await db
+  .select()
+  .from(schema.invites)
+  .where(eq(schema.invites.token, Astro.params.token!));
+
+const valid = invite && !invite.accepted_at && invite.expires_at > Date.now();
+const [workspace] = valid
+  ? await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, invite.workspace_id))
+  : [];
+
+const result = Astro.getActionResult(actions.acceptInvite);
+if (result && !result.error) return Astro.redirect("/");
+---
+
+<Base title={t.invite.title}>
+  <main class="mx-auto max-w-md p-8">
+    {
+      !valid || !workspace ? (
+        <p class="text-sm text-neutral-500">{t.invite.invalid}</p>
+      ) : (
+        <>
+          <h1 class="text-2xl font-bold">{t.invite.heading(workspace.name)}</h1>
+          <p class="mt-2 text-sm text-neutral-500">{t.invite.tagline}</p>
+          <p class="mt-1 text-sm text-neutral-500">{t.invite.role(invite.role)}</p>
+          {result?.error && <p class="mt-4 text-sm text-red-600">{result.error.message}</p>}
+          <form method="POST" action={actions.acceptInvite} class="mt-6 flex flex-col gap-4">
+            <input type="hidden" name="token" value={invite.token} />
+            <label class="flex flex-col gap-1 text-sm">
+              {t.auth.name}
+              <input
+                name="name"
+                required
+                class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-sm">
+              {t.auth.password}
+              <input
+                name="password"
+                type="password"
+                minlength="8"
+                required
+                class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
+              />
+            </label>
+            <button class="rounded bg-neutral-900 px-4 py-2 text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
+              {t.invite.accept}
+            </button>
+          </form>
+        </>
+      )
+    }
+  </main>
+</Base>
