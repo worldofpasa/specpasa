@@ -1,0 +1,59 @@
+---
+import { desc, eq } from "drizzle-orm";
+import { schema } from "@specpasa/db";
+import Base from "../../../layouts/Base.astro";
+import { getDb } from "../../../lib/db";
+
+const db = getDb();
+const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
+if (!spec) return new Response("Not found", { status: 404 });
+
+const versions = await db
+  .select({
+    id: schema.spec_versions.id,
+    number: schema.spec_versions.number,
+    summary: schema.spec_versions.summary,
+    ai_generated: schema.spec_versions.ai_generated,
+    created_at: schema.spec_versions.created_at,
+    author: schema.users.name,
+  })
+  .from(schema.spec_versions)
+  .innerJoin(schema.users, eq(schema.spec_versions.created_by, schema.users.id))
+  .where(eq(schema.spec_versions.spec_id, spec.id))
+  .orderBy(desc(schema.spec_versions.number));
+---
+
+<Base title={`Versions — ${spec.title}`}>
+  <main class="mx-auto max-w-4xl p-8">
+    <nav class="text-sm text-neutral-500">
+      <a href={`/s/${spec.id}`} class="hover:underline">{spec.title}</a> / versions
+    </nav>
+    <h1 class="mt-1 text-2xl font-bold">Version history</h1>
+
+    <ul class="mt-6 flex flex-col gap-2">
+      {
+        versions.map((version) => (
+          <li>
+            <a
+              href={`/s/${spec.id}/v/${version.number}`}
+              class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
+            >
+              <span class="font-mono font-semibold">v{version.number}</span>
+              <span class="text-neutral-500">{version.author}</span>
+              {version.ai_generated && (
+                <span class="rounded bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                  AI-generated
+                </span>
+              )}
+              {version.summary && <span class="text-neutral-500">{version.summary}</span>}
+              <span class="ml-auto text-xs text-neutral-400">
+                {new Date(version.created_at).toLocaleString()}
+              </span>
+            </a>
+          </li>
+        ))
+      }
+      {versions.length === 0 && <li class="text-sm text-neutral-500">No versions yet.</li>}
+    </ul>
+  </main>
+</Base>

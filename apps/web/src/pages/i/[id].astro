@@ -1,0 +1,69 @@
+---
+import { actions } from "astro:actions";
+import { desc, eq } from "drizzle-orm";
+import { schema } from "@specpasa/db";
+import Base from "../../layouts/Base.astro";
+import { getDb } from "../../lib/db";
+
+const db = getDb();
+const [intent] = await db
+  .select()
+  .from(schema.intents)
+  .where(eq(schema.intents.id, Astro.params.id!));
+if (!intent) return new Response("Not found", { status: 404 });
+
+const [project] = await db
+  .select()
+  .from(schema.projects)
+  .where(eq(schema.projects.id, intent.project_id));
+
+const specs = await db
+  .select()
+  .from(schema.specs)
+  .where(eq(schema.specs.intent_id, intent.id))
+  .orderBy(desc(schema.specs.updated_at));
+
+const result = Astro.getActionResult(actions.createSpec);
+if (result && !result.error) return Astro.redirect(`/s/${result.data.id}`);
+---
+
+<Base title={`${intent.title} — specpasa`}>
+  <main class="mx-auto max-w-4xl p-8">
+    <nav class="text-sm text-neutral-500">
+      <a href="/" class="hover:underline">Projects</a> /
+      <a href={`/p/${project!.id}`} class="hover:underline">{project!.name}</a> /
+    </nav>
+    <h1 class="mt-1 text-2xl font-bold">{intent.title}</h1>
+    {intent.description && <p class="mt-1 text-sm text-neutral-500">{intent.description}</p>}
+    <p class="mt-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">Specs</p>
+
+    <ul class="mt-3 flex flex-col gap-2">
+      {
+        specs.map((spec) => (
+          <li>
+            <a
+              href={`/s/${spec.id}`}
+              class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
+            >
+              <span class="font-medium">{spec.title}</span>
+              <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs uppercase tracking-wide text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                {spec.phase}
+              </span>
+              <span class="text-xs text-neutral-500">{spec.status}</span>
+            </a>
+          </li>
+        ))
+      }
+      {specs.length === 0 && <li class="text-sm text-neutral-500">No specs yet — start with a blank PRD below.</li>}
+    </ul>
+
+    <form method="POST" action={actions.createSpec} class="mt-8 flex max-w-lg flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
+      <h2 class="text-sm font-semibold">New spec (starts in the PRD phase)</h2>
+      <input type="hidden" name="intentId" value={intent.id} />
+      <input name="title" required placeholder="Spec title" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+      <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
+        Create spec
+      </button>
+    </form>
+  </main>
+</Base>

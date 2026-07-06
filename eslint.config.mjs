@@ -11,6 +11,7 @@ export default tseslint.config(
       "coverage/**",
       "eslint.config.mjs",
       "**/*.astro",
+      "**/*.d.ts",
       "packages/db/drizzle/**",
     ],
   },
@@ -29,6 +30,14 @@ export default tseslint.config(
       "max-depth": ["error", 4],
       "no-console": ["error", { allow: ["warn", "error"] }],
       "no-duplicate-imports": "error",
+    },
+  },
+  {
+    // JSX conditional rendering inflates cyclomatic complexity; allow React
+    // components more headroom than server code.
+    files: ["**/*.tsx"],
+    rules: {
+      complexity: ["error", 15],
     },
   },
 );

@@ -1,0 +1,31 @@
+---
+import { actions } from "astro:actions";
+import Base from "../layouts/Base.astro";
+import { hasAnyUser } from "../lib/auth";
+
+if (Astro.locals.user) return Astro.redirect("/");
+if (!(await hasAnyUser())) return Astro.redirect("/setup");
+
+const result = Astro.getActionResult(actions.login);
+if (result && !result.error) return Astro.redirect("/");
+---
+
+<Base title="Log in — specpasa">
+  <main class="mx-auto max-w-md p-8">
+    <h1 class="text-2xl font-bold">Log in</h1>
+    {result?.error && <p class="mt-4 text-sm text-red-600">{result.error.message}</p>}
+    <form method="POST" action={actions.login} class="mt-6 flex flex-col gap-4">
+      <label class="flex flex-col gap-1 text-sm">
+        Email
+        <input name="email" type="email" required class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm">
+        Password
+        <input name="password" type="password" required class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
+      </label>
+      <button class="rounded bg-neutral-900 px-4 py-2 text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
+        Log in
+      </button>
+    </form>
+  </main>
+</Base>

@@ -1,19 +1,54 @@
 ---
+import { actions } from "astro:actions";
+import { desc, eq } from "drizzle-orm";
+import { schema } from "@specpasa/db";
 import Base from "../layouts/Base.astro";
+import { getWorkspace } from "../lib/auth";
+import { getDb } from "../lib/db";
+
+const user = Astro.locals.user!;
+const workspace = await getWorkspace(user.id);
+const projects = await getDb()
+  .select()
+  .from(schema.projects)
+  .where(eq(schema.projects.workspace_id, workspace.id))
+  .orderBy(desc(schema.projects.updated_at));
+
+const result = Astro.getActionResult(actions.createProject);
+if (result && !result.error) return Astro.redirect(`/p/${result.data.id}`);
 ---
 
-<Base title="specpasa — collaborative spec builder">
-  <main class="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-6 p-8 text-center">
-    <h1 class="text-4xl font-bold tracking-tight">specpasa</h1>
-    <p class="text-lg text-neutral-600 dark:text-neutral-400">
-      Spec Driven Development is the way to go, and Specs should be built collaboratively.
-    </p>
-    <p class="text-sm text-neutral-500">
-      Brainstorm with AI &rarr; draft the PRD &rarr; review together &rarr; freeze &rarr; ERD &rarr;
-      tasks &rarr; ship to GitHub, Jira, or Linear.
-    </p>
-    <p class="rounded-md border border-dashed border-neutral-300 px-4 py-2 text-xs text-neutral-500 dark:border-neutral-700">
-      Scaffold (M0) — see <code>docs/roadmap.md</code> for what lands next.
-    </p>
+<Base title={`${workspace.name} — specpasa`}>
+  <main class="mx-auto max-w-4xl p-8">
+    <h1 class="text-2xl font-bold">{workspace.name}</h1>
+    <p class="mt-1 text-sm text-neutral-500">Projects</p>
+
+    <ul class="mt-6 flex flex-col gap-2">
+      {
+        projects.map((project) => (
+          <li>
+            <a
+              href={`/p/${project.id}`}
+              class="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
+            >
+              <span class="font-medium">{project.name}</span>
+              {project.description && (
+                <span class="ml-2 text-sm text-neutral-500">{project.description}</span>
+              )}
+            </a>
+          </li>
+        ))
+      }
+      {projects.length === 0 && <li class="text-sm text-neutral-500">No projects yet — create the first one below.</li>}
+    </ul>
+
+    <form method="POST" action={actions.createProject} class="mt-8 flex max-w-lg flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
+      <h2 class="text-sm font-semibold">New project</h2>
+      <input name="name" required placeholder="Project name" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+      <input name="description" placeholder="Description (optional)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+      <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
+        Create project
+      </button>
+    </form>
   </main>
 </Base>

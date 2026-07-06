@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@specpasa/core": "workspace:*"
   },
   "devDependencies": {
