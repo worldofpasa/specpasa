@@ -1,4 +1,5 @@
 ---
+import { actions } from "astro:actions";
 import { desc, eq } from "drizzle-orm";
 import { schema } from "@specpasa/db";
 import Base from "../../../../layouts/Base.astro";
@@ -8,6 +9,9 @@ import { t } from "../../../../lib/strings";
 const db = getDb();
 const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
 if (!spec) return new Response("Not found", { status: 404 });
+
+const forkResult = Astro.getActionResult(actions.forkSpec);
+if (forkResult && !forkResult.error) return Astro.redirect(`/specs/${forkResult.data.id}`);
 
 const versions = await db
   .select({
@@ -34,10 +38,10 @@ const versions = await db
     <ul class="mt-6 flex flex-col gap-2">
       {
         versions.map((version) => (
-          <li>
+          <li class="flex items-center gap-2">
             <a
               href={`/specs/${spec.id}/versions/${version.number}`}
-              class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
+              class="flex flex-1 items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
             >
               <span class="font-mono font-semibold">v{version.number}</span>
               <span class="text-neutral-500">{version.author}</span>
@@ -51,6 +55,15 @@ const versions = await db
                 {new Date(version.created_at).toLocaleString()}
               </span>
             </a>
+            <form method="POST" action={actions.forkSpec}>
+              <input type="hidden" name="versionId" value={version.id} />
+              <button
+                class="rounded border border-neutral-300 px-3 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                title={t.lifecycle.fork}
+              >
+                {t.lifecycle.fork}
+              </button>
+            </form>
           </li>
         ))
       }

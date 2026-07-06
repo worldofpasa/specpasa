@@ -1,8 +1,9 @@
 ---
 import { and, eq } from "drizzle-orm";
-import { diffBlocks, type SpecBlock } from "@specpasa/core";
+import { diffBlocks, fencedContent, type SpecBlock } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import Base from "../../../../layouts/Base.astro";
+import Mermaid from "../../../../islands/Mermaid";
 import { getDb } from "../../../../lib/db";
 import { pageTitle, t } from "../../../../lib/strings";
 
@@ -56,6 +57,9 @@ const diffBase = version.parent_version_id
       {
         version.blocks.map((block) => {
           const added = diff.added.some((b) => b.block_id === block.block_id);
+          if (block.type === "mermaid") {
+            return <Mermaid client:load source={fencedContent(block.markdown)} />;
+          }
           return (
             <pre
               class={`whitespace-pre-wrap rounded-md border px-4 py-2 font-mono text-xs ${

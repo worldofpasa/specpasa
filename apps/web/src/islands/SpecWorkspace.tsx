@@ -1,0 +1,453 @@
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { actions } from "astro:actions";
+import { marked } from "marked";
+import { blocksToMarkdown, fencedContent, type SpecBlock } from "@specpasa/core";
+import { t } from "../lib/strings";
+import Mermaid from "./Mermaid";
+
+interface ProviderOption {
+  id: string;
+  label: string;
+}
+
+interface Props {
+  specId: string;
+  versionNumber: number;
+  frozen: boolean;
+  providers: ProviderOption[];
+  blocks: SpecBlock[];
+  /** Server-rendered attachments section (Astro named slot). */
+  attachments?: ReactNode;
+}
+
+type StreamEvent =
+  | { type: "token"; text: string }
+  | { type: "done"; number: number }
+  | { type: "error"; message: string };
+
+async function* streamEvents(response: Response): AsyncIterable<StreamEvent> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.trim()) yield JSON.parse(line) as StreamEvent;
+    }
+  }
+}
+
+interface DraftCallbacks {
+  onToken: (text: string) => void;
+  onError: (message: string) => void;
+  onDone: () => void;
+}
+
+async function runDraft(
+  body: { specId: string; providerId: string; prompt: string },
+  callbacks: DraftCallbacks,
+): Promise<void> {
+  try {
+    const response = await fetch("/api/ai/draft", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok || !response.body) {
+      callbacks.onError(`Request failed (${response.status}): ${await response.text()}`);
+      return;
+    }
+    for await (const event of streamEvents(response)) {
+      if (event.type === "token") callbacks.onToken(event.text);
+      else if (event.type === "error") callbacks.onError(event.message);
+      else return callbacks.onDone();
+    }
+  } catch (e) {
+    callbacks.onError(e instanceof Error ? e.message : String(e));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Outline (left panel)
+
+interface TocEntry {
+  blockId: string;
+  level: 1 | 2 | 3;
+  text: string;
+}
+
+function tocFromBlocks(blocks: SpecBlock[]): TocEntry[] {
+  const entries: TocEntry[] = [];
+  for (const block of blocks) {
+    const firstLine = block.markdown.split("\n", 1)[0] ?? "";
+    const match = /^(#{1,3})\s+(.+)$/.exec(firstLine);
+    if (match) {
+      entries.push({
+        blockId: block.block_id,
+        level: match[1]!.length as 1 | 2 | 3,
+        text: match[2]!.trim(),
+      });
+    }
+  }
+  return entries;
+}
+
+function scrollToBlock(blockId: string) {
+  document
+    .querySelector(`[data-block-id="${blockId}"]`)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function Outline({ entries }: { entries: TocEntry[] }) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Group h2/h3 entries under the preceding h1 so sections can fold.
+  const groups = useMemo(() => {
+    const result: { head: TocEntry; children: TocEntry[] }[] = [];
+    for (const entry of entries) {
+      if (entry.level === 1 || result.length === 0) {
+        result.push({ head: entry, children: [] });
+      } else {
+        result[result.length - 1]!.children.push(entry);
+      }
+    }
+    return result;
+  }, [entries]);
+
+  if (entries.length === 0) {
+    return <p className="px-2 text-xs text-neutral-500">{t.workspace.outlineEmpty}</p>;
+  }
+  return (
+    <nav className="flex flex-col gap-0.5 text-sm">
+      {groups.map((group) => (
+        <div key={group.head.blockId}>
+          <div className="flex items-center gap-1">
+            {group.children.length > 0 && (
+              <button
+                onClick={() =>
+                  setCollapsed((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(group.head.blockId)) next.delete(group.head.blockId);
+                    else next.add(group.head.blockId);
+                    return next;
+                  })
+                }
+                className="w-4 text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+              >
+                {collapsed.has(group.head.blockId) ? "▸" : "▾"}
+              </button>
+            )}
+            <button
+              onClick={() => scrollToBlock(group.head.blockId)}
+              className="flex-1 truncate rounded px-2 py-1 text-left font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              {group.head.text}
+            </button>
+          </div>
+          {!collapsed.has(group.head.blockId) &&
+            group.children.map((child) => (
+              <button
+                key={child.blockId}
+                onClick={() => scrollToBlock(child.blockId)}
+                className={`block w-full truncate rounded px-2 py-0.5 text-left text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 ${child.level === 2 ? "ml-5" : "ml-9"}`}
+              >
+                {child.text}
+              </button>
+            ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Document sheet (center)
+
+function DocBlock({ block }: { block: SpecBlock }) {
+  return (
+    <div data-block-id={block.block_id} className="group relative scroll-mt-24">
+      <button
+        disabled
+        title={t.workspace.commentStub}
+        aria-label={t.workspace.commentStub}
+        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-neutral-300 text-xs text-neutral-400 group-hover:flex dark:border-neutral-700"
+      >
+        +
+      </button>
+      {block.type === "mermaid" ? (
+        <Mermaid source={fencedContent(block.markdown)} />
+      ) : (
+        <div
+          className="prose prose-neutral max-w-none dark:prose-invert"
+          dangerouslySetInnerHTML={{ __html: marked.parse(block.markdown) as string }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Sheet({ blocks }: { blocks: SpecBlock[] }) {
+  return (
+    <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white px-12 py-10 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+      {blocks.length === 0 ? (
+        <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {blocks.map((block) => (
+            <DocBlock key={block.block_id} block={block} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Floating AI bar
+
+function FloatingAi({
+  specId,
+  versionNumber,
+  frozen,
+  providers,
+}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers">) {
+  const [open, setOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [providerId, setProviderId] = useState(providers[0]?.id ?? "");
+  const [streaming, setStreaming] = useState(false);
+  const [streamed, setStreamed] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const streamRef = useRef<HTMLPreElement>(null);
+
+  if (frozen || providers.length === 0) return null;
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-indigo-500"
+      >
+        {t.workspace.aiPill}
+      </button>
+    );
+  }
+
+  async function draftWithAi() {
+    setStreaming(true);
+    setStreamed("");
+    setError(null);
+    await runDraft(
+      { specId, providerId, prompt },
+      {
+        onToken: (text) => {
+          setStreamed((prev) => prev + text);
+          streamRef.current?.scrollTo(0, streamRef.current.scrollHeight);
+        },
+        onError: setError,
+        onDone: () => window.location.reload(),
+      },
+    );
+    setStreaming(false);
+  }
+
+  return (
+    <div className="fixed bottom-6 left-1/2 z-20 w-[min(44rem,92vw)] -translate-x-1/2 rounded-xl border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+      {(streaming || streamed) && (
+        <pre
+          ref={streamRef}
+          className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 text-xs dark:bg-neutral-950"
+        >
+          {streamed || "…"}
+        </pre>
+      )}
+      <textarea
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        rows={2}
+        placeholder={versionNumber === 0 ? t.editor.aiPromptDraft : t.editor.aiPromptRevise}
+        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <select
+          value={providerId}
+          onChange={(e) => setProviderId(e.target.value)}
+          className="rounded border border-neutral-300 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+        >
+          {providers.map((provider) => (
+            <option key={provider.id} value={provider.id}>
+              {provider.label}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={draftWithAi}
+          disabled={streaming || !prompt.trim()}
+          className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-500 disabled:opacity-40"
+        >
+          {streaming
+            ? t.editor.aiGenerating
+            : versionNumber === 0
+              ? t.editor.aiDraft
+              : t.editor.aiRevise}
+        </button>
+        <span className="hidden text-xs text-neutral-500 sm:inline">{t.editor.aiAutoSaveNote}</span>
+        <button
+          onClick={() => setOpen(false)}
+          className="ml-auto text-xs text-neutral-500 hover:underline"
+        >
+          {t.workspace.aiCollapse}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+interface ToolbarProps {
+  versionNumber: number;
+  dirty: boolean;
+  frozen: boolean;
+  saving: boolean;
+  mode: "reading" | "edit";
+  setMode: (mode: "reading" | "edit") => void;
+  onSave: () => void;
+}
+
+function WorkspaceToolbar({
+  versionNumber,
+  dirty,
+  frozen,
+  saving,
+  mode,
+  setMode,
+  onSave,
+}: ToolbarProps) {
+  return (
+    <div className="mb-3 flex items-center gap-3 text-sm">
+      <span className="font-semibold">
+        {versionNumber === 0 ? t.editor.blankSpec : t.editor.version(versionNumber)}
+      </span>
+      {dirty && <span className="text-xs text-amber-600">{t.editor.unsaved}</span>}
+      <div className="ml-auto flex items-center gap-2">
+        {!frozen && (
+          <div className="flex overflow-hidden rounded border border-neutral-300 text-xs dark:border-neutral-700">
+            <button
+              onClick={() => setMode("reading")}
+              className={`px-3 py-1 ${mode === "reading" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+            >
+              {t.workspace.reading}
+            </button>
+            <button
+              onClick={() => setMode("edit")}
+              className={`px-3 py-1 ${mode === "edit" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+            >
+              {t.workspace.editing}
+            </button>
+          </div>
+        )}
+        {mode === "edit" && !frozen && (
+          <button
+            onClick={onSave}
+            disabled={saving || !dirty}
+            className="rounded bg-neutral-900 px-3 py-1 text-xs text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+          >
+            {saving ? t.editor.saving : t.editor.save}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Workspace shell
+
+export default function SpecWorkspace({
+  specId,
+  versionNumber,
+  frozen,
+  providers,
+  blocks,
+  attachments,
+}: Props) {
+  const [mode, setMode] = useState<"reading" | "edit">(
+    versionNumber === 0 && !frozen ? "edit" : "reading",
+  );
+  const initialMarkdown = useMemo(() => blocksToMarkdown(blocks), [blocks]);
+  const [markdown, setMarkdown] = useState(initialMarkdown);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const toc = useMemo(() => tocFromBlocks(blocks), [blocks]);
+  const dirty = markdown !== initialMarkdown;
+
+  async function save() {
+    setSaving(true);
+    setSaveError(null);
+    const { error } = await actions.saveVersion({ specId, markdown });
+    setSaving(false);
+    if (error) setSaveError(error.message);
+    else window.location.reload();
+  }
+
+  return (
+    <div className="flex gap-6">
+      <aside
+        className={`sticky top-6 hidden max-h-[85vh] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
+      >
+        <button
+          onClick={() => setLeftOpen((v) => !v)}
+          title={leftOpen ? t.workspace.collapsePanel : t.workspace.expandPanel}
+          className="mb-2 self-start rounded border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          {leftOpen ? "«" : "»"}
+        </button>
+        {leftOpen && (
+          <>
+            <h2 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              {t.workspace.outline}
+            </h2>
+            <Outline entries={toc} />
+            <div className="mt-6">{attachments}</div>
+          </>
+        )}
+      </aside>
+
+      <section className="min-w-0 flex-1 pb-28">
+        <WorkspaceToolbar
+          versionNumber={versionNumber}
+          dirty={dirty}
+          frozen={frozen}
+          saving={saving}
+          mode={mode}
+          setMode={setMode}
+          onSave={save}
+        />
+
+        {mode === "reading" || frozen ? (
+          <Sheet blocks={blocks} />
+        ) : (
+          <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <textarea
+              value={markdown}
+              onChange={(e) => setMarkdown(e.target.value)}
+              rows={24}
+              placeholder={t.editor.placeholder}
+              className="w-full resize-y bg-transparent px-6 py-5 font-mono text-sm outline-none"
+            />
+          </div>
+        )}
+        {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
+
+        <FloatingAi
+          specId={specId}
+          versionNumber={versionNumber}
+          frozen={frozen}
+          providers={providers}
+        />
+      </section>
+    </div>
+  );
+}
