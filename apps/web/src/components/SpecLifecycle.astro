@@ -1,0 +1,64 @@
+---
+import { actions } from "astro:actions";
+import { canAdvancePhase, canTransitionStatus, nextPhase } from "@specpasa/core";
+import type { schema } from "@specpasa/db";
+import { t } from "../lib/strings";
+
+interface Props {
+  spec: typeof schema.specs.$inferSelect;
+}
+
+const { spec } = Astro.props;
+const phaseAfter = nextPhase(spec.phase);
+const transitions = [
+  { to: "in_review", label: t.lifecycle.requestReview },
+  { to: "draft", label: t.lifecycle.backToDraft },
+  { to: "frozen", label: t.lifecycle.freeze },
+] as const;
+const available = transitions.filter((transition) =>
+  canTransitionStatus(spec.status, transition.to),
+);
+---
+
+<section class="mt-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+  <div class="flex flex-wrap items-center gap-3">
+    <h2 class="text-sm font-semibold">{t.lifecycle.heading}</h2>
+    <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+      {t.lifecycle.statusLabel}: {spec.status}
+    </span>
+    {
+      available.map((transition) => (
+        <form method="POST" action={actions.transitionSpecStatus}>
+          <input type="hidden" name="specId" value={spec.id} />
+          <input type="hidden" name="to" value={transition.to} />
+          <button
+            class={`rounded px-3 py-1 text-xs ${
+              transition.to === "frozen"
+                ? "bg-sky-700 text-white hover:bg-sky-600"
+                : "border border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            }`}
+          >
+            {transition.label}
+          </button>
+        </form>
+      ))
+    }
+    {
+      canAdvancePhase(spec) && phaseAfter && (
+        <form method="POST" action={actions.advancePhase}>
+          <input type="hidden" name="specId" value={spec.id} />
+          <button class="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-500">
+            {t.lifecycle.startNextPhase(phaseAfter)}
+          </button>
+        </form>
+      )
+    }
+  </div>
+  {
+    spec.status === "frozen" && spec.frozen_at && (
+      <p class="mt-2 text-xs text-neutral-500">
+        {t.lifecycle.frozenNote(new Date(spec.frozen_at).toLocaleString())}
+      </p>
+    )
+  }
+</section>

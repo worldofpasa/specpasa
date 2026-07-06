@@ -73,3 +73,17 @@ export function blocksFromMarkdown(markdown: string, previous: SpecBlock[] = [])
 export function blocksToMarkdown(blocks: SpecBlock[]): string {
   return blocks.map((b) => b.markdown).join("\n\n");
 }
+
+/**
+ * Inner source of a fenced block ("```mermaid\n…\n```" → "…"). Returns the
+ * input unchanged when it is not a single fenced block.
+ */
+export function fencedContent(markdown: string): string {
+  const lines = markdown.trim().split("\n");
+  const first = lines[0] ?? "";
+  const last = lines[lines.length - 1] ?? "";
+  if (lines.length >= 2 && /^(`{3,}|~{3,})/.test(first) && /^(`{3,}|~{3,})\s*$/.test(last)) {
+    return lines.slice(1, -1).join("\n");
+  }
+  return markdown;
+}

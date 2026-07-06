@@ -10,6 +10,7 @@ import {
   type AgentRequest,
 } from "@specpasa/providers";
 import { getDb } from "../../../lib/db";
+import { resolveReferences } from "../../../lib/references";
 
 interface DraftContext {
   spec: typeof schema.specs.$inferSelect;
@@ -76,7 +77,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const db = getDb();
   const blocks: SpecBlock[] = latest?.blocks ?? [];
-  const agentRequest: AgentRequest = { prompt, blocks, phase: spec.phase };
+  const referenceContext = await resolveReferences(spec.id);
+  const agentRequest: AgentRequest = {
+    prompt,
+    blocks,
+    phase: spec.phase,
+    context: referenceContext,
+  };
   const events = blocks.length ? agent.refine(agentRequest) : agent.draft(agentRequest);
 
   const encoder = new TextEncoder();

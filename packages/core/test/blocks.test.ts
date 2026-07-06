@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { blocksFromMarkdown, blocksToMarkdown, splitMarkdown } from "../src/blocks.js";
+import {
+  blocksFromMarkdown,
+  blocksToMarkdown,
+  fencedContent,
+  splitMarkdown,
+} from "../src/blocks.js";
 import { diffBlocks } from "../src/diff.js";
 
 const DOC = `# Title
@@ -57,5 +62,15 @@ describe("diffBlocks", () => {
     expect(diff.removed.map((b) => b.markdown)).toEqual(["edit me", "drop"]);
     expect(diff.added.map((b) => b.markdown)).toEqual(["edited", "new block"]);
     expect(diff.changed).toEqual([]);
+  });
+});
+
+describe("fencedContent", () => {
+  it("strips the fence from a fenced block", () => {
+    expect(fencedContent("```mermaid\ngraph TD\n  A --> B\n```")).toBe("graph TD\n  A --> B");
+  });
+
+  it("returns non-fenced content unchanged", () => {
+    expect(fencedContent("plain paragraph")).toBe("plain paragraph");
   });
 });

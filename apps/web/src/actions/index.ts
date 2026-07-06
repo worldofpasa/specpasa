@@ -2,11 +2,21 @@ import { ActionError, defineAction } from "astro:actions";
 import { SPECPASA_SECRET } from "astro:env/server";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
-import { blocksFromMarkdown, encryptSecret, newId } from "@specpasa/core";
+import {
+  blocksFromMarkdown,
+  canAdvancePhase,
+  canTransitionStatus,
+  encryptSecret,
+  forkInitialState,
+  newId,
+  nextPhase,
+  SPEC_STATUSES,
+} from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { getDb } from "../lib/db";
+import { t } from "../lib/strings";
 
 const now = () => Date.now();
 
@@ -249,6 +259,200 @@ export const server = {
       await getDb()
         .delete(schema.ai_provider_configs)
         .where(eq(schema.ai_provider_configs.id, input.id));
+      return { ok: true };
+    },
+  }),
+
+  transitionSpecStatus: defineAction({
+    accept: "form",
+    input: z.object({ specId: z.string(), to: z.enum(SPEC_STATUSES) }),
+    handler: async (input, context) => {
+      await requireUser(context);
+      const db = getDb();
+      const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
+      if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      if (!canTransitionStatus(spec.status, input.to)) {
+        throw new ActionError({
+          code: "FORBIDDEN",
+          message: `Illegal transition ${spec.status} → ${input.to}`,
+        });
+      }
+      if (input.to === "frozen" && !spec.current_version_id) {
+        throw new ActionError({ code: "BAD_REQUEST", message: t.lifecycle.freezeNeedsVersion });
+      }
+      const ts = now();
+      await db
+        .update(schema.specs)
+        .set({
+          status: input.to,
+          frozen_at: input.to === "frozen" ? ts : null,
+          updated_at: ts,
+        })
+        .where(eq(schema.specs.id, spec.id));
+      return { status: input.to };
+    },
+  }),
+
+  advancePhase: defineAction({
+    accept: "form",
+    input: z.object({ specId: z.string() }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const db = getDb();
+      const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
+      if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      const phase = nextPhase(spec.phase);
+      if (!canAdvancePhase(spec) || !phase) {
+        throw new ActionError({
+          code: "FORBIDDEN",
+          message: "Only a frozen spec with a next phase can advance",
+        });
+      }
+      const [frozenVersion] = await db
+        .select()
+        .from(schema.spec_versions)
+        .where(eq(schema.spec_versions.id, spec.current_version_id!));
+      const ts = now();
+      const specId = newId();
+      const versionId = newId();
+      const seed = [
+        t.lifecycle.seedHeading(spec.title, phase),
+        t.lifecycle.seedNote(spec.phase, frozenVersion?.number ?? 0),
+      ].join("\n\n");
+      await db.insert(schema.specs).values({
+        id: specId,
+        intent_id: spec.intent_id,
+        title: spec.title,
+        phase,
+        status: "draft",
+        derived_from_spec_id: spec.id,
+        created_by: userId,
+        created_at: ts,
+        updated_at: ts,
+      });
+      await db.insert(schema.spec_versions).values({
+        id: versionId,
+        spec_id: specId,
+        number: 1,
+        blocks: blocksFromMarkdown(seed),
+        summary: t.lifecycle.derivedFrom(spec.phase),
+        created_by: userId,
+        ai_generated: false,
+        created_at: ts,
+      });
+      await db
+        .update(schema.specs)
+        .set({ current_version_id: versionId })
+        .where(eq(schema.specs.id, specId));
+      // The frozen source rides along as a spec reference so AI drafts in the
+      // new phase see it as context (FR-LIFE-4, FR-AI-8).
+      await db.insert(schema.spec_references).values({
+        id: newId(),
+        spec_id: specId,
+        kind: "spec",
+        title: `${spec.title} (${spec.phase.toUpperCase()}, frozen)`,
+        payload: { spec_id: spec.id },
+        created_by: userId,
+        created_at: ts,
+      });
+      return { id: specId };
+    },
+  }),
+
+  forkSpec: defineAction({
+    accept: "form",
+    input: z.object({ versionId: z.string() }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const db = getDb();
+      const [version] = await db
+        .select()
+        .from(schema.spec_versions)
+        .where(eq(schema.spec_versions.id, input.versionId));
+      if (!version) throw new ActionError({ code: "NOT_FOUND", message: "Version not found" });
+      const [source] = await db
+        .select()
+        .from(schema.specs)
+        .where(eq(schema.specs.id, version.spec_id));
+      if (!source) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      const initial = forkInitialState(source.phase);
+      const ts = now();
+      const specId = newId();
+      const versionId = newId();
+      await db.insert(schema.specs).values({
+        id: specId,
+        intent_id: source.intent_id,
+        title: t.lifecycle.forkTitle(source.title),
+        phase: initial.phase,
+        status: initial.status,
+        forked_from_version_id: version.id,
+        created_by: userId,
+        created_at: ts,
+        updated_at: ts,
+      });
+      // Blocks are copied verbatim: stable block IDs preserve lineage (ADR-5).
+      await db.insert(schema.spec_versions).values({
+        id: versionId,
+        spec_id: specId,
+        number: 1,
+        blocks: version.blocks,
+        summary: `Forked from v${version.number} of "${source.title}"`,
+        created_by: userId,
+        ai_generated: false,
+        created_at: ts,
+      });
+      await db
+        .update(schema.specs)
+        .set({ current_version_id: versionId })
+        .where(eq(schema.specs.id, specId));
+      return { id: specId };
+    },
+  }),
+
+  addReference: defineAction({
+    accept: "form",
+    input: z.object({
+      specId: z.string(),
+      kind: z.enum(["url", "github_code", "spec"]),
+      title: z.string().min(1),
+      target: z.string().min(1),
+    }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const db = getDb();
+      const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
+      if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      if (input.kind === "spec") {
+        const [target] = await db
+          .select({ id: schema.specs.id })
+          .from(schema.specs)
+          .where(eq(schema.specs.id, input.target.trim()));
+        if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
+      }
+      const isLink = input.kind === "url" || input.kind === "github_code";
+      if (isLink && !/^https?:\/\//.test(input.target.trim())) {
+        throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
+      }
+      await db.insert(schema.spec_references).values({
+        id: newId(),
+        spec_id: spec.id,
+        kind: input.kind,
+        title: input.title,
+        url: isLink ? input.target.trim() : null,
+        payload: input.kind === "spec" ? { spec_id: input.target.trim() } : null,
+        created_by: userId,
+        created_at: now(),
+      });
+      return { ok: true };
+    },
+  }),
+
+  deleteReference: defineAction({
+    accept: "form",
+    input: z.object({ id: z.string() }),
+    handler: async (input, context) => {
+      await requireUser(context);
+      await getDb().delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
       return { ok: true };
     },
   }),

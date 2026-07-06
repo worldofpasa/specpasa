@@ -1,9 +1,12 @@
 ---
+import { actions } from "astro:actions";
 import { eq, isNull, or, and } from "drizzle-orm";
 import { blocksToMarkdown } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import Base from "../../../layouts/Base.astro";
 import SpecEditor from "../../../islands/SpecEditor";
+import SpecLifecycle from "../../../components/SpecLifecycle.astro";
+import SpecReferences from "../../../components/SpecReferences.astro";
 import { getWorkspace } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
@@ -25,6 +28,18 @@ const current = spec.current_version_id
         .where(eq(schema.spec_versions.id, spec.current_version_id))
     )[0]
   : undefined;
+
+const advanceResult = Astro.getActionResult(actions.advancePhase);
+if (advanceResult && !advanceResult.error)
+  return Astro.redirect(`/specs/${advanceResult.data.id}`);
+
+// POST-redirect-GET for same-page form actions: without it, a client-side
+// reload of the POST result URL re-submits the form (duplicate rows).
+const prgResult =
+  Astro.getActionResult(actions.addReference) ??
+  Astro.getActionResult(actions.deleteReference) ??
+  Astro.getActionResult(actions.transitionSpecStatus);
+if (prgResult && !prgResult.error) return Astro.redirect(`/specs/${spec.id}`);
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
 const providerConfigs = await db
@@ -70,5 +85,8 @@ const providers = providerConfigs.map((p) => ({
       providers={providers}
       frozen={spec.status === "frozen"}
     />
+
+    <SpecLifecycle spec={spec} />
+    <SpecReferences specId={spec.id} />
   </main>
 </Base>

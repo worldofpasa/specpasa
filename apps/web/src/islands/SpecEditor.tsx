@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { actions } from "astro:actions";
 import { marked } from "marked";
 import { t } from "../lib/strings";
+import { renderMermaidIn } from "./mermaid-render";
 
 interface ProviderOption {
   id: string;
@@ -48,9 +49,15 @@ function EditorPane({
   frozen: boolean;
   onChange: (value: string) => void;
 }) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (showPreview && previewRef.current) void renderMermaidIn(previewRef.current);
+  }, [showPreview, markdown]);
+
   if (showPreview) {
     return (
       <div
+        ref={previewRef}
         className="prose prose-neutral max-w-none px-6 py-4 dark:prose-invert [&_code]:text-sm"
         dangerouslySetInnerHTML={{ __html: marked.parse(markdown) as string }}
       />
