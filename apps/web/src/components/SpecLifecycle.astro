@@ -6,9 +6,10 @@ import { t } from "../lib/strings";
 
 interface Props {
   spec: typeof schema.specs.$inferSelect;
+  openThreads?: number;
 }
 
-const { spec } = Astro.props;
+const { spec, openThreads = 0 } = Astro.props;
 const phaseAfter = nextPhase(spec.phase);
 const transitions = [
   { to: "in_review", label: t.lifecycle.requestReview },
@@ -30,21 +31,41 @@ const available = transitions.filter((transition) =>
     {t.lifecycle.statusLabel}: {spec.status}
   </span>
   {
-    available.map((transition) => (
-      <form method="POST" action={actions.transitionSpecStatus}>
-        <input type="hidden" name="specId" value={spec.id} />
-        <input type="hidden" name="to" value={transition.to} />
-        <button
-          class={`rounded px-3 py-1 text-xs ${
-            transition.to === "frozen"
-              ? "bg-sky-700 text-white hover:bg-sky-600"
-              : "border border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-          }`}
+    available.map((transition) => {
+      const guarded = transition.to === "frozen" && openThreads > 0;
+      return (
+        <form
+          method="POST"
+          action={actions.transitionSpecStatus}
+          class={guarded ? "flex items-center gap-2" : undefined}
         >
-          {transition.label}
-        </button>
-      </form>
-    ))
+          <input type="hidden" name="specId" value={spec.id} />
+          <input type="hidden" name="to" value={transition.to} />
+          {guarded && (
+            <span class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              {t.lifecycle.openThreadsWarning(openThreads)}
+            </span>
+          )}
+          {guarded && (
+            <label class="flex items-center gap-1 text-xs text-neutral-600 dark:text-neutral-400">
+              <input type="checkbox" id="freeze-confirm-box" />
+              {t.lifecycle.freezeConfirmLabel}
+            </label>
+          )}
+          <button
+            id={guarded ? "freeze-submit" : undefined}
+            disabled={guarded}
+            class={`rounded px-3 py-1 text-xs ${
+              transition.to === "frozen"
+                ? "bg-sky-700 text-white hover:bg-sky-600 disabled:opacity-40"
+                : "border border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            }`}
+          >
+            {transition.label}
+          </button>
+        </form>
+      );
+    })
   }
   {
     canAdvancePhase(spec) && phaseAfter && (
@@ -57,3 +78,15 @@ const available = transitions.filter((transition) =>
     )
   }
 </div>
+
+<script>
+  // Freeze-with-open-threads requires an explicit confirm (FR-COLLAB-4):
+  // the checkbox arms the submit button.
+  const box = document.getElementById("freeze-confirm-box");
+  const submit = document.getElementById("freeze-submit");
+  if (box instanceof HTMLInputElement && submit instanceof HTMLButtonElement) {
+    box.addEventListener("change", () => {
+      submit.disabled = !box.checked;
+    });
+  }
+</script>

@@ -5,24 +5,39 @@ import { desc, eq } from "drizzle-orm";
 import {
   blocksFromMarkdown,
   canAdvancePhase,
+  canComment,
+  canEdit,
+  canManageMembers,
   canTransitionStatus,
   encryptSecret,
   forkInitialState,
+  MEMBER_ROLES,
   newId,
   nextPhase,
   SPEC_STATUSES,
 } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
-import { getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
+import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { getDb } from "../lib/db";
 import { t } from "../lib/strings";
 
 const now = () => Date.now();
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function requireUser(context: { session?: { get(key: string): Promise<unknown> } }) {
   const userId = (await context.session?.get("userId")) as string | undefined;
   if (!userId) throw new ActionError({ code: "UNAUTHORIZED", message: "Sign in first" });
+  return userId;
+}
+
+/** requireUser + editor-level role (FR-TEN-4): version/draft mutations. */
+async function requireEditor(context: { session?: { get(key: string): Promise<unknown> } }) {
+  const userId = await requireUser(context);
+  const { role } = await getMembership(userId);
+  if (!canEdit(role)) {
+    throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot edit specs" });
+  }
   return userId;
 }
 
@@ -175,7 +190,7 @@ export const server = {
       summary: z.string().optional(),
     }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
@@ -453,6 +468,162 @@ export const server = {
     handler: async (input, context) => {
       await requireUser(context);
       await getDb().delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
+      return { ok: true };
+    },
+  }),
+
+  inviteMember: defineAction({
+    accept: "form",
+    input: z.object({ email: z.string().email(), role: z.enum(MEMBER_ROLES) }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const { workspace, role } = await getMembership(userId);
+      if (!canManageMembers(role)) {
+        throw new ActionError({ code: "FORBIDDEN", message: "Only owners can invite members" });
+      }
+      const ts = now();
+      const token = newId();
+      await getDb()
+        .insert(schema.invites)
+        .values({
+          id: newId(),
+          workspace_id: workspace.id,
+          email: input.email,
+          role: input.role,
+          token,
+          invited_by: userId,
+          expires_at: ts + INVITE_TTL_MS,
+          created_at: ts,
+        });
+      return { token };
+    },
+  }),
+
+  acceptInvite: defineAction({
+    accept: "form",
+    input: z.object({ token: z.string(), name: z.string().min(1), password: z.string().min(8) }),
+    handler: async (input, context) => {
+      const db = getDb();
+      const [invite] = await db
+        .select()
+        .from(schema.invites)
+        .where(eq(schema.invites.token, input.token));
+      if (!invite || invite.accepted_at || invite.expires_at < now()) {
+        throw new ActionError({ code: "NOT_FOUND", message: "Invite is invalid or expired" });
+      }
+      const [existing] = await db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, invite.email));
+      if (existing) {
+        throw new ActionError({
+          code: "CONFLICT",
+          message: "An account with this email already exists — log in instead",
+        });
+      }
+      const ts = now();
+      const userId = newId();
+      await db.insert(schema.users).values({
+        id: userId,
+        email: invite.email,
+        name: input.name,
+        password_hash: hashPassword(input.password),
+        created_at: ts,
+        updated_at: ts,
+      });
+      await db.insert(schema.memberships).values({
+        id: newId(),
+        workspace_id: invite.workspace_id,
+        user_id: userId,
+        role: invite.role,
+        created_at: ts,
+      });
+      await db
+        .update(schema.invites)
+        .set({ accepted_at: ts })
+        .where(eq(schema.invites.id, invite.id));
+      await context.session?.set("userId", userId);
+      return { ok: true };
+    },
+  }),
+
+  createThread: defineAction({
+    input: z.object({
+      specId: z.string(),
+      blockId: z.string(),
+      body: z.string().min(1),
+    }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const { role } = await getMembership(userId);
+      if (!canComment(role)) {
+        throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
+      }
+      const db = getDb();
+      const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
+      if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      if (!spec.current_version_id) {
+        throw new ActionError({ code: "BAD_REQUEST", message: "Save a version before commenting" });
+      }
+      const ts = now();
+      const threadId = newId();
+      await db.insert(schema.comment_threads).values({
+        id: threadId,
+        spec_id: spec.id,
+        block_id: input.blockId,
+        created_on_version_id: spec.current_version_id,
+        created_by: userId,
+        created_at: ts,
+      });
+      await db.insert(schema.comments).values({
+        id: newId(),
+        thread_id: threadId,
+        author_id: userId,
+        body: input.body,
+        created_at: ts,
+        updated_at: ts,
+      });
+      return { threadId };
+    },
+  }),
+
+  replyThread: defineAction({
+    input: z.object({ threadId: z.string(), body: z.string().min(1) }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const { role } = await getMembership(userId);
+      if (!canComment(role)) {
+        throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
+      }
+      const ts = now();
+      await getDb().insert(schema.comments).values({
+        id: newId(),
+        thread_id: input.threadId,
+        author_id: userId,
+        body: input.body,
+        created_at: ts,
+        updated_at: ts,
+      });
+      return { ok: true };
+    },
+  }),
+
+  setThreadResolved: defineAction({
+    input: z.object({ threadId: z.string(), resolved: z.boolean() }),
+    handler: async (input, context) => {
+      const userId = await requireUser(context);
+      const { role } = await getMembership(userId);
+      if (!canComment(role)) {
+        throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot resolve threads" });
+      }
+      await getDb()
+        .update(schema.comment_threads)
+        .set(
+          input.resolved
+            ? { resolved_at: now(), resolved_by: userId }
+            : { resolved_at: null, resolved_by: null },
+        )
+        .where(eq(schema.comment_threads.id, input.threadId));
       return { ok: true };
     },
   }),

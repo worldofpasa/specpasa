@@ -46,3 +46,16 @@ export async function getWorkspace(userId: string) {
   if (!row) throw new Error("User has no workspace");
   return row.workspace;
 }
+
+/** Workspace + the user's role in it — the policy input for actions (M2). */
+export async function getMembership(userId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({ workspace: schema.workspaces, role: schema.memberships.role })
+    .from(schema.memberships)
+    .innerJoin(schema.workspaces, eq(schema.memberships.workspace_id, schema.workspaces.id))
+    .where(eq(schema.memberships.user_id, userId))
+    .limit(1);
+  if (!row) throw new Error("User has no workspace");
+  return row;
+}

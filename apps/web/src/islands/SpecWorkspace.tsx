@@ -16,6 +16,10 @@ interface Props {
   frozen: boolean;
   providers: ProviderOption[];
   blocks: SpecBlock[];
+  /** Editors can switch to edit mode, save, and use AI (canEdit role). */
+  canEditDoc: boolean;
+  /** Commenters+ get the per-block "+" affordance (canComment role). */
+  commentsEnabled: boolean;
   /** Server-rendered attachments section (Astro named slot). */
   attachments?: ReactNode;
 }
@@ -166,14 +170,19 @@ function Outline({ entries }: { entries: TocEntry[] }) {
 // ---------------------------------------------------------------------------
 // Document sheet (center)
 
-function DocBlock({ block }: { block: SpecBlock }) {
+export function requestBlockComment(blockId: string) {
+  window.dispatchEvent(new CustomEvent("specpasa:comment-block", { detail: { blockId } }));
+}
+
+function DocBlock({ block, commentsEnabled }: { block: SpecBlock; commentsEnabled: boolean }) {
   return (
     <div data-block-id={block.block_id} className="group relative scroll-mt-24">
       <button
-        disabled
-        title={t.workspace.commentStub}
-        aria-label={t.workspace.commentStub}
-        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-neutral-300 text-xs text-neutral-400 group-hover:flex dark:border-neutral-700"
+        disabled={!commentsEnabled}
+        title={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
+        aria-label={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
+        onClick={() => commentsEnabled && requestBlockComment(block.block_id)}
+        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-neutral-300 text-xs text-neutral-400 hover:border-neutral-500 hover:text-neutral-700 group-hover:flex dark:border-neutral-700 dark:hover:text-neutral-200"
       >
         +
       </button>
@@ -189,7 +198,7 @@ function DocBlock({ block }: { block: SpecBlock }) {
   );
 }
 
-function Sheet({ blocks }: { blocks: SpecBlock[] }) {
+function Sheet({ blocks, commentsEnabled }: { blocks: SpecBlock[]; commentsEnabled: boolean }) {
   return (
     <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white px-12 py-10 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       {blocks.length === 0 ? (
@@ -197,7 +206,7 @@ function Sheet({ blocks }: { blocks: SpecBlock[] }) {
       ) : (
         <div className="flex flex-col gap-3">
           {blocks.map((block) => (
-            <DocBlock key={block.block_id} block={block} />
+            <DocBlock key={block.block_id} block={block} commentsEnabled={commentsEnabled} />
           ))}
         </div>
       )}
@@ -309,6 +318,7 @@ interface ToolbarProps {
   versionNumber: number;
   dirty: boolean;
   frozen: boolean;
+  canEditDoc: boolean;
   saving: boolean;
   mode: "reading" | "edit";
   setMode: (mode: "reading" | "edit") => void;
@@ -319,6 +329,7 @@ function WorkspaceToolbar({
   versionNumber,
   dirty,
   frozen,
+  canEditDoc,
   saving,
   mode,
   setMode,
@@ -331,7 +342,7 @@ function WorkspaceToolbar({
       </span>
       {dirty && <span className="text-xs text-amber-600">{t.editor.unsaved}</span>}
       <div className="ml-auto flex items-center gap-2">
-        {!frozen && (
+        {!frozen && canEditDoc && (
           <div className="flex overflow-hidden rounded border border-neutral-300 text-xs dark:border-neutral-700">
             <button
               onClick={() => setMode("reading")}
@@ -347,7 +358,7 @@ function WorkspaceToolbar({
             </button>
           </div>
         )}
-        {mode === "edit" && !frozen && (
+        {mode === "edit" && !frozen && canEditDoc && (
           <button
             onClick={onSave}
             disabled={saving || !dirty}
@@ -370,10 +381,12 @@ export default function SpecWorkspace({
   frozen,
   providers,
   blocks,
+  canEditDoc,
+  commentsEnabled,
   attachments,
 }: Props) {
   const [mode, setMode] = useState<"reading" | "edit">(
-    versionNumber === 0 && !frozen ? "edit" : "reading",
+    versionNumber === 0 && !frozen && canEditDoc ? "edit" : "reading",
   );
   const initialMarkdown = useMemo(() => blocksToMarkdown(blocks), [blocks]);
   const [markdown, setMarkdown] = useState(initialMarkdown);
@@ -420,14 +433,15 @@ export default function SpecWorkspace({
           versionNumber={versionNumber}
           dirty={dirty}
           frozen={frozen}
+          canEditDoc={canEditDoc}
           saving={saving}
           mode={mode}
           setMode={setMode}
           onSave={save}
         />
 
-        {mode === "reading" || frozen ? (
-          <Sheet blocks={blocks} />
+        {mode === "reading" || frozen || !canEditDoc ? (
+          <Sheet blocks={blocks} commentsEnabled={commentsEnabled} />
         ) : (
           <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
             <textarea
@@ -441,12 +455,14 @@ export default function SpecWorkspace({
         )}
         {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
 
-        <FloatingAi
-          specId={specId}
-          versionNumber={versionNumber}
-          frozen={frozen}
-          providers={providers}
-        />
+        {canEditDoc && (
+          <FloatingAi
+            specId={specId}
+            versionNumber={versionNumber}
+            frozen={frozen}
+            providers={providers}
+          />
+        )}
       </section>
     </div>
   );

@@ -1,13 +1,14 @@
 ---
 import { actions } from "astro:actions";
-import { eq, isNull, or, and } from "drizzle-orm";
+import { count, eq, isNull, or, and } from "drizzle-orm";
+import { canComment, canEdit } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import Base from "../../../layouts/Base.astro";
 import SpecWorkspace from "../../../islands/SpecWorkspace";
-import CommentsRail from "../../../islands/CommentsRail";
+import CommentsPanel from "../../../islands/CommentsPanel";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
-import { getWorkspace } from "../../../lib/auth";
+import { getMembership } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
@@ -41,7 +42,7 @@ const current = spec.current_version_id
     )[0]
   : undefined;
 
-const workspace = await getWorkspace(Astro.locals.user!.id);
+const { workspace, role } = await getMembership(Astro.locals.user!.id);
 const providerConfigs = await db
   .select()
   .from(schema.ai_provider_configs)
@@ -57,6 +58,19 @@ const providerConfigs = await db
 const providers = providerConfigs.map((p) => ({
   id: p.id,
   label: `${p.name} (${p.kind}${p.model ? ` · ${p.model}` : ""})`,
+}));
+
+const [openThreadRow] = await db
+  .select({ n: count() })
+  .from(schema.comment_threads)
+  .where(
+    and(eq(schema.comment_threads.spec_id, spec.id), isNull(schema.comment_threads.resolved_at)),
+  );
+const openThreads = openThreadRow?.n ?? 0;
+
+const blockRefs = (current?.blocks ?? []).map((b) => ({
+  block_id: b.block_id,
+  snippet: b.markdown.slice(0, 100),
 }));
 ---
 
@@ -79,7 +93,7 @@ const providers = providerConfigs.map((p) => ({
         </div>
       </div>
       <div class="ml-auto">
-        <SpecLifecycle spec={spec} />
+        {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
       </div>
     </header>
 
@@ -92,6 +106,8 @@ const providers = providerConfigs.map((p) => ({
           frozen={spec.status === "frozen"}
           providers={providers}
           blocks={current?.blocks ?? []}
+          canEditDoc={canEdit(role)}
+          commentsEnabled={canComment(role)}
         >
           <div slot="attachments">
             <SpecReferences specId={spec.id} />
@@ -100,7 +116,12 @@ const providers = providerConfigs.map((p) => ({
       </div>
 
       <aside class="sticky top-6 hidden w-72 shrink-0 self-start xl:block">
-        <CommentsRail client:load threads={[]} />
+        <CommentsPanel
+          client:load
+          specId={spec.id}
+          blocks={blockRefs}
+          canComment={canComment(role)}
+        />
       </aside>
     </div>
   </main>
