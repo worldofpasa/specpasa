@@ -2,6 +2,7 @@
 import { actions } from "astro:actions";
 import Base from "../layouts/Base.astro";
 import { hasAnyUser } from "../lib/auth";
+import { t } from "../lib/strings";
 
 if (await hasAnyUser()) return Astro.redirect(Astro.locals.user ? "/" : "/login");
 
@@ -9,32 +10,30 @@ const result = Astro.getActionResult(actions.setup);
 if (result && !result.error) return Astro.redirect("/");
 ---
 
-<Base title="Set up specpasa">
+<Base title={t.auth.setupTitle}>
   <main class="mx-auto max-w-md p-8">
-    <h1 class="text-2xl font-bold">Welcome to specpasa</h1>
-    <p class="mt-2 text-sm text-neutral-500">
-      First run: create the admin account and your workspace.
-    </p>
+    <h1 class="text-2xl font-bold">{t.auth.setupHeading}</h1>
+    <p class="mt-2 text-sm text-neutral-500">{t.auth.setupTagline}</p>
     {result?.error && <p class="mt-4 text-sm text-red-600">{result.error.message}</p>}
     <form method="POST" action={actions.setup} class="mt-6 flex flex-col gap-4">
       <label class="flex flex-col gap-1 text-sm">
-        Your name
+        {t.auth.name}
         <input name="name" required class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        Email
+        {t.auth.email}
         <input name="email" type="email" required class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        Password (8+ characters)
+        {t.auth.password}
         <input name="password" type="password" minlength="8" required class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        Workspace name
-        <input name="workspaceName" required placeholder="e.g. worldofpasa" class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
+        {t.auth.workspaceName}
+        <input name="workspaceName" required placeholder={t.auth.workspacePlaceholder} class="rounded border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900" />
       </label>
       <button class="rounded bg-neutral-900 px-4 py-2 text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
-        Create workspace
+        {t.auth.createWorkspace}
       </button>
     </form>
   </main>

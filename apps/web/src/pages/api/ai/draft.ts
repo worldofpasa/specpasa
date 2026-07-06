@@ -1,29 +1,15 @@
 import type { APIRoute } from "astro";
+import { SPECPASA_SECRET } from "astro:env/server";
 import { desc, eq } from "drizzle-orm";
 import { decryptSecret, newId, type SpecBlock } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import {
-  createAnthropicAgent,
-  createOllamaAgent,
+  createSpecAgent,
+  ProviderConfigError,
+  ProviderNotImplementedError,
   type AgentRequest,
-  type SpecAgent,
 } from "@specpasa/providers";
-import { getDb, getSecret } from "../../../lib/db";
-
-async function buildAgent(
-  config: typeof schema.ai_provider_configs.$inferSelect,
-): Promise<SpecAgent | null> {
-  if (config.kind === "anthropic") {
-    if (!config.encrypted_credentials) return null;
-    const apiKey = await decryptSecret(config.encrypted_credentials, getSecret());
-    return createAnthropicAgent({ apiKey, model: config.model ?? undefined });
-  }
-  if (config.kind === "ollama") {
-    if (!config.model) return null;
-    return createOllamaAgent({ model: config.model, baseUrl: config.base_url ?? undefined });
-  }
-  return null;
-}
+import { getDb } from "../../../lib/db";
 
 interface DraftContext {
   spec: typeof schema.specs.$inferSelect;
@@ -59,6 +45,17 @@ async function resolveDraftContext(request: Request): Promise<DraftContext | Res
   return { spec, config, latest, prompt };
 }
 
+async function buildAgent(config: typeof schema.ai_provider_configs.$inferSelect) {
+  return createSpecAgent({
+    kind: config.kind,
+    model: config.model,
+    baseUrl: config.base_url,
+    apiKey: config.encrypted_credentials
+      ? await decryptSecret(config.encrypted_credentials, SPECPASA_SECRET)
+      : null,
+  });
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return new Response("Unauthorized", { status: 401 });
@@ -67,12 +64,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (context instanceof Response) return context;
   const { spec, config, latest, prompt } = context;
 
-  const agent = await buildAgent(config);
-  if (!agent) return new Response("Provider is misconfigured", { status: 400 });
+  let agent;
+  try {
+    agent = await buildAgent(config);
+  } catch (error) {
+    if (error instanceof ProviderConfigError || error instanceof ProviderNotImplementedError) {
+      return new Response(error.message, { status: 400 });
+    }
+    throw error;
+  }
 
   const db = getDb();
   const blocks: SpecBlock[] = latest?.blocks ?? [];
-
   const agentRequest: AgentRequest = { prompt, blocks, phase: spec.phase };
   const events = blocks.length ? agent.refine(agentRequest) : agent.draft(agentRequest);
 

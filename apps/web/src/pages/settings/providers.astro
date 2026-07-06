@@ -6,6 +6,7 @@ import { schema } from "@specpasa/db";
 import Base from "../../layouts/Base.astro";
 import { getWorkspace } from "../../lib/auth";
 import { getDb } from "../../lib/db";
+import { t } from "../../lib/strings";
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
 const configs = await getDb()
@@ -18,20 +19,18 @@ const detected = await detectLocalProviders();
 const ollamaDetected = detected.find((d) => d.kind === "ollama");
 ---
 
-<Base title="AI Providers — specpasa">
+<Base title={t.providers.title}>
   <main class="mx-auto max-w-4xl p-8">
-    <h1 class="text-2xl font-bold">AI Providers</h1>
-    <p class="mt-1 text-sm text-neutral-500">
-      Workspace-scoped provider configs. API keys are encrypted at rest and never sent to the browser.
-    </p>
+    <h1 class="text-2xl font-bold">{t.providers.heading}</h1>
+    <p class="mt-1 text-sm text-neutral-500">{t.providers.tagline}</p>
 
     <div class="mt-4 rounded-lg border border-neutral-200 bg-white p-4 text-sm dark:border-neutral-800 dark:bg-neutral-900">
-      <h2 class="font-semibold">Detected on this host</h2>
+      <h2 class="font-semibold">{t.providers.detectedHeading}</h2>
       {
         ollamaDetected ? (
-          <p class="mt-1 text-green-700 dark:text-green-400">✓ Ollama is running — {ollamaDetected.detail}</p>
+          <p class="mt-1 text-green-700 dark:text-green-400">{t.providers.ollamaRunning(ollamaDetected.detail)}</p>
         ) : (
-          <p class="mt-1 text-neutral-500">Ollama not detected on localhost:11434. Local CLI detection (claude, codex) arrives in M5.</p>
+          <p class="mt-1 text-neutral-500">{t.providers.ollamaAbsent}</p>
         )
       }
     </div>
@@ -45,34 +44,34 @@ const ollamaDetected = detected.find((d) => d.kind === "ollama");
               {config.kind}
             </span>
             <span class="text-neutral-500">{config.model}</span>
-            {config.encrypted_credentials && <span class="text-xs text-neutral-400">key stored (encrypted)</span>}
+            {config.encrypted_credentials && <span class="text-xs text-neutral-400">{t.providers.keyStored}</span>}
             <form method="POST" action={actions.deleteProviderConfig} class="ml-auto">
               <input type="hidden" name="id" value={config.id} />
-              <button class="text-xs text-red-600 hover:underline">Remove</button>
+              <button class="text-xs text-red-600 hover:underline">{t.providers.remove}</button>
             </form>
           </li>
         ))
       }
-      {configs.length === 0 && <li class="text-sm text-neutral-500">No providers configured yet.</li>}
+      {configs.length === 0 && <li class="text-sm text-neutral-500">{t.providers.empty}</li>}
     </ul>
 
     <div class="mt-8 grid gap-6 md:grid-cols-2">
       <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 class="text-sm font-semibold">Add Anthropic</h2>
+        <h2 class="text-sm font-semibold">{t.providers.addAnthropic}</h2>
         <input type="hidden" name="kind" value="anthropic" />
-        <input name="name" required placeholder="Display name (e.g. Claude)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <input name="name" required placeholder={t.providers.displayNameAnthropic} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="model" required value="claude-opus-4-8" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <input name="apiKey" required type="password" placeholder="API key (sk-ant-…)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">Add</button>
+        <input name="apiKey" required type="password" placeholder={t.providers.apiKeyPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
       </form>
 
       <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 class="text-sm font-semibold">Add Ollama (local)</h2>
+        <h2 class="text-sm font-semibold">{t.providers.addOllama}</h2>
         <input type="hidden" name="kind" value="ollama" />
-        <input name="name" required placeholder="Display name (e.g. Local Llama)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <input name="model" required placeholder="Model (e.g. llama3.2)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <input name="baseUrl" placeholder="Base URL (default http://localhost:11434)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">Add</button>
+        <input name="name" required placeholder={t.providers.displayNameOllama} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <input name="model" required placeholder={t.providers.modelPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <input name="baseUrl" placeholder={t.providers.baseUrlPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
       </form>
     </div>
   </main>

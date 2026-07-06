@@ -6,6 +6,7 @@ import Base from "../../../layouts/Base.astro";
 import SpecEditor from "../../../islands/SpecEditor";
 import { getWorkspace } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
+import { pageTitle, t } from "../../../lib/strings";
 
 const db = getDb();
 const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
@@ -44,11 +45,11 @@ const providers = providerConfigs.map((p) => ({
 }));
 ---
 
-<Base title={`${spec.title} — specpasa`}>
+<Base title={pageTitle(spec.title)}>
   <main class="mx-auto max-w-4xl p-8">
     <nav class="text-sm text-neutral-500">
-      <a href="/" class="hover:underline">Projects</a> /
-      <a href={`/i/${intent!.id}`} class="hover:underline">{intent!.title}</a> /
+      <a href="/" class="hover:underline">{t.nav.projects}</a> /
+      <a href={`/intents/${intent!.id}`} class="hover:underline">{intent!.title}</a> /
     </nav>
     <div class="mt-1 flex items-center gap-3">
       <h1 class="text-2xl font-bold">{spec.title}</h1>
@@ -56,8 +57,8 @@ const providers = providerConfigs.map((p) => ({
         {spec.phase}
       </span>
       <span class="text-xs text-neutral-500">{spec.status}</span>
-      <a href={`/s/${spec.id}/versions`} class="ml-auto text-sm text-neutral-500 hover:underline">
-        Version history{current ? ` (v${current.number})` : ""}
+      <a href={`/specs/${spec.id}/versions`} class="ml-auto text-sm text-neutral-500 hover:underline">
+        {t.specs.versionHistory}{current ? ` (v${current.number})` : ""}
       </a>
     </div>
 

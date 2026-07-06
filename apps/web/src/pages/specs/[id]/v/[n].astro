@@ -4,6 +4,7 @@ import { diffBlocks, type SpecBlock } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import Base from "../../../../layouts/Base.astro";
 import { getDb } from "../../../../lib/db";
+import { pageTitle, t } from "../../../../lib/strings";
 
 const db = getDb();
 const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
@@ -13,9 +14,7 @@ const number = Number(Astro.params.n);
 const [version] = await db
   .select()
   .from(schema.spec_versions)
-  .where(
-    and(eq(schema.spec_versions.spec_id, spec.id), eq(schema.spec_versions.number, number)),
-  );
+  .where(and(eq(schema.spec_versions.spec_id, spec.id), eq(schema.spec_versions.number, number)));
 if (!version) return new Response("Not found", { status: 404 });
 
 const parentBlocks: SpecBlock[] = version.parent_version_id
@@ -28,27 +27,29 @@ const parentBlocks: SpecBlock[] = version.parent_version_id
   : [];
 
 const diff = diffBlocks(parentBlocks, version.blocks);
+const diffBase = version.parent_version_id
+  ? t.versions.versionBase(version.number - 1)
+  : t.versions.blankBase;
 ---
 
-<Base title={`v${version.number} — ${spec.title}`}>
+<Base title={pageTitle(t.versions.versionBase(version.number), spec.title)}>
   <main class="mx-auto max-w-4xl p-8">
     <nav class="text-sm text-neutral-500">
-      <a href={`/s/${spec.id}`} class="hover:underline">{spec.title}</a> /
-      <a href={`/s/${spec.id}/versions`} class="hover:underline">versions</a> / v{version.number}
+      <a href={`/specs/${spec.id}`} class="hover:underline">{spec.title}</a> /
+      <a href={`/specs/${spec.id}/versions`} class="hover:underline">{t.versions.crumb}</a> / v{version.number}
     </nav>
     <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold">
-      Version {version.number}
+      {t.editor.version(version.number)}
       {
         version.ai_generated && (
           <span class="rounded bg-indigo-100 px-2 py-0.5 text-xs font-normal text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-            AI-generated
+            {t.versions.aiBadge}
           </span>
         )
       }
     </h1>
     <p class="mt-1 text-sm text-neutral-500">
-      Block-level diff against {version.parent_version_id ? `v${version.number - 1}` : "the blank spec"} —
-      {diff.added.length} added, {diff.removed.length} removed, {diff.unchanged.length} unchanged.
+      {t.versions.diffSummary(diffBase, diff.added.length, diff.removed.length, diff.unchanged.length)}
     </p>
 
     <div class="mt-6 flex flex-col gap-2 text-sm">

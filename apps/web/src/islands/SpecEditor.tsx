@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { actions } from "astro:actions";
 import { marked } from "marked";
+import { t } from "../lib/strings";
 
 interface ProviderOption {
   id: string;
@@ -61,9 +62,7 @@ function EditorPane({
       onChange={(e) => onChange(e.target.value)}
       disabled={frozen}
       rows={20}
-      placeholder={
-        "Start with rough thoughts, bullet points, links — anything.\nThen ask AI to draft the PRD below."
-      }
+      placeholder={t.editor.placeholder}
       className="w-full resize-y bg-transparent px-4 py-3 font-mono text-sm outline-none"
     />
   );
@@ -112,7 +111,7 @@ function AiPanel({
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<HTMLPreElement>(null);
 
-  const idleLabel = versionNumber === 0 ? "Draft with AI" : "Revise with AI";
+  const idleLabel = versionNumber === 0 ? t.editor.aiDraft : t.editor.aiRevise;
 
   async function draftWithAi() {
     setStreaming(true);
@@ -135,9 +134,9 @@ function AiPanel({
   if (providers.length === 0) {
     return (
       <p className="mt-2 text-sm text-neutral-500">
-        No AI providers configured yet —{" "}
+        {t.editor.aiNoProviders}
         <a href="/settings/providers" className="underline">
-          add one in settings
+          {t.editor.aiNoProvidersLink}
         </a>
         .
       </p>
@@ -150,11 +149,7 @@ function AiPanel({
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         rows={3}
-        placeholder={
-          versionNumber === 0
-            ? "Rough thoughts to turn into a draft PRD…"
-            : "How should the AI revise the current document?"
-        }
+        placeholder={versionNumber === 0 ? t.editor.aiPromptDraft : t.editor.aiPromptRevise}
         className="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
       />
       <div className="flex items-center gap-3">
@@ -174,11 +169,9 @@ function AiPanel({
           disabled={streaming || frozen || !prompt.trim()}
           className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-500 disabled:opacity-40"
         >
-          {streaming ? "Generating…" : idleLabel}
+          {streaming ? t.editor.aiGenerating : idleLabel}
         </button>
-        <span className="text-xs text-neutral-500">
-          Saves automatically as a new version marked AI-generated.
-        </span>
+        <span className="text-xs text-neutral-500">{t.editor.aiAutoSaveNote}</span>
       </div>
       {(streaming || streamed) && (
         <pre
@@ -221,22 +214,22 @@ export default function SpecEditor({
       <section className="rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="flex items-center gap-3 border-b border-neutral-200 px-4 py-2 text-sm dark:border-neutral-800">
           <span className="font-semibold">
-            {versionNumber === 0 ? "Blank spec" : `Version ${versionNumber}`}
+            {versionNumber === 0 ? t.editor.blankSpec : t.editor.version(versionNumber)}
           </span>
-          {dirty && <span className="text-xs text-amber-600">unsaved changes</span>}
+          {dirty && <span className="text-xs text-amber-600">{t.editor.unsaved}</span>}
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setShowPreview((v) => !v)}
               className="rounded border border-neutral-300 px-3 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
             >
-              {showPreview ? "Edit" : "Preview"}
+              {showPreview ? t.editor.edit : t.editor.preview}
             </button>
             <button
               onClick={save}
               disabled={saving || frozen || !dirty}
               className="rounded bg-neutral-900 px-3 py-1 text-xs text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
             >
-              {saving ? "Saving…" : "Save as new version"}
+              {saving ? t.editor.saving : t.editor.save}
             </button>
           </div>
         </div>
@@ -250,7 +243,7 @@ export default function SpecEditor({
       </section>
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <h2 className="text-sm font-semibold">Brainstorm with AI</h2>
+        <h2 className="text-sm font-semibold">{t.editor.aiHeading}</h2>
         <AiPanel
           specId={specId}
           versionNumber={versionNumber}

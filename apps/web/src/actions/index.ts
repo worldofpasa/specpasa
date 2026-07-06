@@ -1,10 +1,12 @@
 import { ActionError, defineAction } from "astro:actions";
+import { SPECPASA_SECRET } from "astro:env/server";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { blocksFromMarkdown, encryptSecret, newId } from "@specpasa/core";
 import { schema } from "@specpasa/db";
+import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
-import { getDb, getSecret } from "../lib/db";
+import { getDb } from "../lib/db";
 
 const now = () => Date.now();
 
@@ -205,7 +207,7 @@ export const server = {
   saveProviderConfig: defineAction({
     accept: "form",
     input: z.object({
-      kind: z.enum(["anthropic", "ollama"]),
+      kind: z.enum(IMPLEMENTED_AI_PROVIDER_KINDS),
       name: z.string().min(1),
       model: z.string().min(1),
       apiKey: z.string().optional(),
@@ -229,7 +231,7 @@ export const server = {
           model: input.model,
           base_url: input.baseUrl || null,
           encrypted_credentials: input.apiKey
-            ? await encryptSecret(input.apiKey, getSecret())
+            ? await encryptSecret(input.apiKey, SPECPASA_SECRET)
             : null,
           enabled: true,
           created_at: ts,

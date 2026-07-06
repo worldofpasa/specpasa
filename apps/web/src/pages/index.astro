@@ -5,6 +5,7 @@ import { schema } from "@specpasa/db";
 import Base from "../layouts/Base.astro";
 import { getWorkspace } from "../lib/auth";
 import { getDb } from "../lib/db";
+import { pageTitle, t } from "../lib/strings";
 
 const user = Astro.locals.user!;
 const workspace = await getWorkspace(user.id);
@@ -15,20 +16,20 @@ const projects = await getDb()
   .orderBy(desc(schema.projects.updated_at));
 
 const result = Astro.getActionResult(actions.createProject);
-if (result && !result.error) return Astro.redirect(`/p/${result.data.id}`);
+if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`);
 ---
 
-<Base title={`${workspace.name} — specpasa`}>
+<Base title={pageTitle(workspace.name)}>
   <main class="mx-auto max-w-4xl p-8">
     <h1 class="text-2xl font-bold">{workspace.name}</h1>
-    <p class="mt-1 text-sm text-neutral-500">Projects</p>
+    <p class="mt-1 text-sm text-neutral-500">{t.projects.listLabel}</p>
 
     <ul class="mt-6 flex flex-col gap-2">
       {
         projects.map((project) => (
           <li>
             <a
-              href={`/p/${project.id}`}
+              href={`/projects/${project.id}`}
               class="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
             >
               <span class="font-medium">{project.name}</span>
@@ -39,15 +40,15 @@ if (result && !result.error) return Astro.redirect(`/p/${result.data.id}`);
           </li>
         ))
       }
-      {projects.length === 0 && <li class="text-sm text-neutral-500">No projects yet — create the first one below.</li>}
+      {projects.length === 0 && <li class="text-sm text-neutral-500">{t.projects.empty}</li>}
     </ul>
 
     <form method="POST" action={actions.createProject} class="mt-8 flex max-w-lg flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
-      <h2 class="text-sm font-semibold">New project</h2>
-      <input name="name" required placeholder="Project name" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-      <input name="description" placeholder="Description (optional)" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+      <h2 class="text-sm font-semibold">{t.projects.newHeading}</h2>
+      <input name="name" required placeholder={t.projects.namePlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+      <input name="description" placeholder={t.projects.descriptionPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
       <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
-        Create project
+        {t.projects.create}
       </button>
     </form>
   </main>
