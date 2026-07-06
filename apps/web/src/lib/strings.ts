@@ -92,9 +92,9 @@ export const t = {
       "Workspace-scoped provider configs. API keys are encrypted at rest and never sent to the browser.",
     title: pageTitle("AI Providers"),
     detectedHeading: "Detected on this host",
-    ollamaRunning: (detail: string) => `✓ Ollama is running — ${detail}`,
-    ollamaAbsent:
-      "Ollama not detected on localhost:11434. Local CLI detection (claude, codex) arrives in M5.",
+    detectedItem: (name: string, detail: string) => `✓ ${name} — ${detail}`,
+    nothingDetected:
+      "No local AI backends detected — looked for Ollama on localhost:11434 and the claude/codex CLIs on PATH.",
     empty: "No providers configured yet.",
     keyStored: "key stored (encrypted)",
     remove: "Remove",
@@ -105,6 +105,10 @@ export const t = {
     apiKeyPlaceholder: "API key (sk-ant-…)",
     modelPlaceholder: "Model (e.g. llama3.2)",
     baseUrlPlaceholder: "Base URL (default http://localhost:11434)",
+    addLocalCli: "Add local CLI",
+    localCliNote: "Runs the CLI on this host — nothing leaves the machine, no API key needed.",
+    displayNameLocalCli: "Display name (e.g. Claude CLI)",
+    cliCommandLabel: "Command",
     add: "Add",
   },
   lifecycle: {

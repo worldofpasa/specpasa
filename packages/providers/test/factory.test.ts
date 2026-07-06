@@ -4,6 +4,7 @@ import {
   createSpecAgent,
   ProviderConfigError,
   ProviderNotImplementedError,
+  ProviderRequiresNodeError,
 } from "../src/factory.js";
 
 const base = { model: null, baseUrl: null, apiKey: null };
@@ -26,10 +27,16 @@ describe("createSpecAgent", () => {
   });
 
   it("names the milestone for kinds that are not implemented yet", () => {
-    expect(() => createSpecAgent({ ...base, kind: "local_cli" })).toThrow(
+    expect(() => createSpecAgent({ ...base, kind: "openrouter" })).toThrow(
       ProviderNotImplementedError,
     );
     expect(() => createSpecAgent({ ...base, kind: "openrouter" })).toThrow(/M2\+/);
+  });
+
+  it("points local_cli at the Node entry from the runtime-agnostic factory", () => {
+    expect(() => createSpecAgent({ ...base, kind: "local_cli", cliCommand: "claude" })).toThrow(
+      ProviderRequiresNodeError,
+    );
   });
 
   it("handles every declared provider kind without falling through", () => {

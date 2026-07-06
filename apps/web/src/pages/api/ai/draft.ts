@@ -4,11 +4,13 @@ import { desc, eq } from "drizzle-orm";
 import { canEdit, decryptSecret, newId, type SpecBlock } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import {
-  createSpecAgent,
   ProviderConfigError,
   ProviderNotImplementedError,
+  ProviderRequiresNodeError,
   type AgentRequest,
+  type SpecAgent,
 } from "@specpasa/providers";
+import { createSpecAgentNode } from "@specpasa/providers/node";
 import { getMembership } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { resolveReferences } from "../../../lib/references";
@@ -48,35 +50,56 @@ async function resolveDraftContext(request: Request): Promise<DraftContext | Res
 }
 
 async function buildAgent(config: typeof schema.ai_provider_configs.$inferSelect) {
-  return createSpecAgent({
+  // Node deploy target: the node factory adds local_cli on top of the
+  // runtime-agnostic kinds (ADR-2).
+  return createSpecAgentNode({
     kind: config.kind,
     model: config.model,
     baseUrl: config.base_url,
+    cliCommand: config.cli_command,
     apiKey: config.encrypted_credentials
       ? await decryptSecret(config.encrypted_credentials, SPECPASA_SECRET)
       : null,
   });
 }
 
+/** Editor-role authZ (FR-TEN-4) for draft requests. */
+async function authorizeDraft(userId: string): Promise<Response | null> {
+  const { role } = await getMembership(userId);
+  if (!canEdit(role)) return new Response("Your role cannot request drafts", { status: 403 });
+  return null;
+}
+
+/** Build the agent, mapping expected configuration failures to a 400. */
+async function buildAgentOrResponse(
+  config: typeof schema.ai_provider_configs.$inferSelect,
+): Promise<SpecAgent | Response> {
+  try {
+    return await buildAgent(config);
+  } catch (error) {
+    if (
+      error instanceof ProviderConfigError ||
+      error instanceof ProviderNotImplementedError ||
+      error instanceof ProviderRequiresNodeError
+    ) {
+      return new Response(error.message, { status: 400 });
+    }
+    throw error;
+  }
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return new Response("Unauthorized", { status: 401 });
-  const { role } = await getMembership(user.id);
-  if (!canEdit(role)) return new Response("Your role cannot request drafts", { status: 403 });
+  const denied = await authorizeDraft(user.id);
+  if (denied) return denied;
 
   const context = await resolveDraftContext(request);
   if (context instanceof Response) return context;
   const { spec, config, latest, prompt } = context;
 
-  let agent;
-  try {
-    agent = await buildAgent(config);
-  } catch (error) {
-    if (error instanceof ProviderConfigError || error instanceof ProviderNotImplementedError) {
-      return new Response(error.message, { status: 400 });
-    }
-    throw error;
-  }
+  const agent = await buildAgentOrResponse(config);
+  if (agent instanceof Response) return agent;
 
   const db = getDb();
   const blocks: SpecBlock[] = latest?.blocks ?? [];
