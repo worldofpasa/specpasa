@@ -7,7 +7,7 @@ The product docs in `docs/` are the source of truth — read them before changin
 - `docs/prd.md` — requirements with stable IDs (FR-TEN, FR-HIER, FR-LIFE, FR-COLLAB, FR-AI, FR-REF, FR-DIAG, FR-INT, NFR)
 - `docs/domain-model.md` — entities/ERD; the Drizzle schema is written from this
 - `docs/architecture.md` — ADR-1..7 (stack, deploy, db, AI providers, editor/versioning, realtime, integrations)
-- `docs/roadmap.md` — milestones M0–M5 (currently: M0 scaffold done)
+- `docs/roadmap.md` — milestones M0–M5 (currently: M1 single-user vertical slice done on SQLite; Postgres parity pending)
 
 ## Monorepo map
 

@@ -21,9 +21,19 @@ specpasa is a self-hosted visual spec builder. Start from rough thoughts and ref
 6. Freeze the ERD → break it down into **tasks**, group into epics, and export to GitHub, Jira, or Linear.
 7. Fork any spec from any version to explore a different direction.
 
+## A look inside
+
+The spec editor — brainstorm panel below, every save an immutable version:
+
+![Spec editor showing an AI-drafted PRD with the brainstorm panel](docs/assets/m1-editor.png)
+
+| Version history — AI drafts are marked                                     | AI providers — local detection + encrypted keys                                     |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| ![Version history with an AI-generated badge](docs/assets/m1-versions.png) | ![Provider settings with Ollama detected on the host](docs/assets/m1-providers.png) |
+
 ## Status
 
-Early — milestone **M0 (scaffold)** is complete. See [docs/roadmap.md](docs/roadmap.md) for what lands next, and the spec documents this project was (of course) built from:
+Early — **M1 (single-user vertical slice)** is complete on SQLite: blank spec → AI draft → iterate → versioned history with diffs. See [docs/roadmap.md](docs/roadmap.md) for what lands next, and the spec documents this project was (of course) built from:
 
 - [Product requirements](docs/prd.md)
 - [Domain model](docs/domain-model.md)
@@ -35,9 +45,9 @@ Requirements: Node ≥ 22, pnpm ≥ 11.
 
 ```sh
 pnpm install
-cp .env.example .env        # set SPECPASA_SECRET
+cp .env.example .env        # set SPECPASA_SECRET (required, min 16 chars)
 pnpm db:migrate             # creates data/specpasa.db (SQLite by default)
-pnpm dev                    # http://localhost:4321
+pnpm dev                    # http://localhost:4321 — first visit runs admin setup
 ```
 
 `pnpm test`, `pnpm typecheck`, and `pnpm lint` cover the workspace. The repo is a pnpm monorepo: `apps/web` (Astro 7 + React islands), `packages/core` (domain logic), `packages/db` (Drizzle), `packages/providers` (AI adapters).

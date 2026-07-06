@@ -1,0 +1,77 @@
+---
+import { and, eq } from "drizzle-orm";
+import { diffBlocks, type SpecBlock } from "@specpasa/core";
+import { schema } from "@specpasa/db";
+import Base from "../../../../layouts/Base.astro";
+import { getDb } from "../../../../lib/db";
+import { pageTitle, t } from "../../../../lib/strings";
+
+const db = getDb();
+const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
+if (!spec) return new Response("Not found", { status: 404 });
+
+const number = Number(Astro.params.n);
+const [version] = await db
+  .select()
+  .from(schema.spec_versions)
+  .where(and(eq(schema.spec_versions.spec_id, spec.id), eq(schema.spec_versions.number, number)));
+if (!version) return new Response("Not found", { status: 404 });
+
+const parentBlocks: SpecBlock[] = version.parent_version_id
+  ? ((
+      await db
+        .select()
+        .from(schema.spec_versions)
+        .where(eq(schema.spec_versions.id, version.parent_version_id))
+    )[0]?.blocks ?? [])
+  : [];
+
+const diff = diffBlocks(parentBlocks, version.blocks);
+const diffBase = version.parent_version_id
+  ? t.versions.versionBase(version.number - 1)
+  : t.versions.blankBase;
+---
+
+<Base title={pageTitle(t.versions.versionBase(version.number), spec.title)}>
+  <main class="mx-auto max-w-4xl p-8">
+    <nav class="text-sm text-neutral-500">
+      <a href={`/specs/${spec.id}`} class="hover:underline">{spec.title}</a> /
+      <a href={`/specs/${spec.id}/versions`} class="hover:underline">{t.versions.crumb}</a> / v{version.number}
+    </nav>
+    <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold">
+      {t.editor.version(version.number)}
+      {
+        version.ai_generated && (
+          <span class="rounded bg-indigo-100 px-2 py-0.5 text-xs font-normal text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+            {t.versions.aiBadge}
+          </span>
+        )
+      }
+    </h1>
+    <p class="mt-1 text-sm text-neutral-500">
+      {t.versions.diffSummary(diffBase, diff.added.length, diff.removed.length, diff.unchanged.length)}
+    </p>
+
+    <div class="mt-6 flex flex-col gap-2 text-sm">
+      {
+        version.blocks.map((block) => {
+          const added = diff.added.some((b) => b.block_id === block.block_id);
+          return (
+            <pre
+              class={`whitespace-pre-wrap rounded-md border px-4 py-2 font-mono text-xs ${
+                added
+                  ? "border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/40"
+                  : "border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+              }`}
+            >{block.markdown}</pre>
+          );
+        })
+      }
+      {
+        diff.removed.map((block) => (
+          <pre class="whitespace-pre-wrap rounded-md border border-red-300 bg-red-50 px-4 py-2 font-mono text-xs line-through opacity-70 dark:border-red-900 dark:bg-red-950/40">{block.markdown}</pre>
+        ))
+      }
+    </div>
+  </main>
+</Base>

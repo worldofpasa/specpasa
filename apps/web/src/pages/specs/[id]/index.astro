@@ -1,0 +1,74 @@
+---
+import { eq, isNull, or, and } from "drizzle-orm";
+import { blocksToMarkdown } from "@specpasa/core";
+import { schema } from "@specpasa/db";
+import Base from "../../../layouts/Base.astro";
+import SpecEditor from "../../../islands/SpecEditor";
+import { getWorkspace } from "../../../lib/auth";
+import { getDb } from "../../../lib/db";
+import { pageTitle, t } from "../../../lib/strings";
+
+const db = getDb();
+const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, Astro.params.id!));
+if (!spec) return new Response("Not found", { status: 404 });
+
+const [intent] = await db
+  .select()
+  .from(schema.intents)
+  .where(eq(schema.intents.id, spec.intent_id));
+
+const current = spec.current_version_id
+  ? (
+      await db
+        .select()
+        .from(schema.spec_versions)
+        .where(eq(schema.spec_versions.id, spec.current_version_id))
+    )[0]
+  : undefined;
+
+const workspace = await getWorkspace(Astro.locals.user!.id);
+const providerConfigs = await db
+  .select()
+  .from(schema.ai_provider_configs)
+  .where(
+    and(
+      eq(schema.ai_provider_configs.enabled, true),
+      or(
+        eq(schema.ai_provider_configs.workspace_id, workspace.id),
+        isNull(schema.ai_provider_configs.workspace_id),
+      ),
+    ),
+  );
+const providers = providerConfigs.map((p) => ({
+  id: p.id,
+  label: `${p.name} (${p.kind}${p.model ? ` · ${p.model}` : ""})`,
+}));
+---
+
+<Base title={pageTitle(spec.title)}>
+  <main class="mx-auto max-w-4xl p-8">
+    <nav class="text-sm text-neutral-500">
+      <a href="/" class="hover:underline">{t.nav.projects}</a> /
+      <a href={`/intents/${intent!.id}`} class="hover:underline">{intent!.title}</a> /
+    </nav>
+    <div class="mt-1 flex items-center gap-3">
+      <h1 class="text-2xl font-bold">{spec.title}</h1>
+      <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs uppercase tracking-wide text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+        {spec.phase}
+      </span>
+      <span class="text-xs text-neutral-500">{spec.status}</span>
+      <a href={`/specs/${spec.id}/versions`} class="ml-auto text-sm text-neutral-500 hover:underline">
+        {t.specs.versionHistory}{current ? ` (v${current.number})` : ""}
+      </a>
+    </div>
+
+    <SpecEditor
+      client:load
+      specId={spec.id}
+      initialMarkdown={current ? blocksToMarkdown(current.blocks) : ""}
+      versionNumber={current?.number ?? 0}
+      providers={providers}
+      frozen={spec.status === "frozen"}
+    />
+  </main>
+</Base>

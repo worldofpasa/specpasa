@@ -1,11 +1,14 @@
 ---
 import "../styles/global.css";
+import { actions } from "astro:actions";
+import { APP_NAME, t } from "../lib/strings";
 
 interface Props {
   title?: string;
 }
 
-const { title = "specpasa" } = Astro.props;
+const { title = APP_NAME } = Astro.props;
+const user = Astro.locals.user;
 ---
 
 <!doctype html>
@@ -16,6 +19,31 @@ const { title = "specpasa" } = Astro.props;
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
+    {
+      user && (
+        <header class="border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <nav class="mx-auto flex max-w-4xl items-center gap-6 px-6 py-3 text-sm">
+            <a href="/" class="font-bold tracking-tight">
+              {APP_NAME}
+            </a>
+            <a href="/" class="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
+              {t.nav.projects}
+            </a>
+            <a
+              href="/settings/providers"
+              class="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+            >
+              {t.nav.providers}
+            </a>
+            <span class="ml-auto text-neutral-500">{user.name}</span>
+            {/* Submit to /login so the post-logout render lands on the login page */}
+            <form method="POST" action={"/login" + actions.logout}>
+              <button class="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">{t.nav.logout}</button>
+            </form>
+          </nav>
+        </header>
+      )
+    }
     <slot />
   </body>
 </html>
