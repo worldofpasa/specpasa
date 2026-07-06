@@ -16,15 +16,17 @@ const references = await getDb()
   .where(eq(schema.spec_references.spec_id, specId));
 ---
 
-<section class="mt-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-  <h2 class="text-sm font-semibold">{t.references.heading}</h2>
-  <p class="mt-1 text-xs text-neutral-500">{t.references.tagline}</p>
+<section>
+  <h2 class="px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+    {t.workspace.attachments}
+  </h2>
+  <p class="mt-1 px-2 text-xs text-neutral-500">{t.references.tagline}</p>
 
-  <ul class="mt-3 flex flex-col gap-2">
+  <ul class="mt-2 flex flex-col gap-1.5">
     {
       references.map((reference) => (
-        <li class="flex items-center gap-3 rounded border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-800">
-          <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+        <li class="flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-800">
+          <span class="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
             {reference.kind}
           </span>
           {reference.url ? (
@@ -36,27 +38,24 @@ const references = await getDb()
           )}
           <form method="POST" action={actions.deleteReference} class="ml-auto">
             <input type="hidden" name="id" value={reference.id} />
-            <button class="text-xs text-red-600 hover:underline">{t.references.remove}</button>
+            <button class="text-[10px] text-red-600 hover:underline">{t.references.remove}</button>
           </form>
         </li>
       ))
     }
-    {references.length === 0 && <li class="text-sm text-neutral-500">{t.references.empty}</li>}
+    {references.length === 0 && <li class="px-2 text-xs text-neutral-500">{t.references.empty}</li>}
   </ul>
 
-  <form method="POST" action={actions.addReference} class="mt-4 flex flex-wrap items-end gap-2">
+  <form method="POST" action={actions.addReference} class="mt-3 flex flex-col gap-1.5 px-2">
     <input type="hidden" name="specId" value={specId} />
-    <label class="flex flex-col gap-1 text-xs">
-      {t.references.kindLabel}
-      <select name="kind" class="rounded border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950">
-        <option value="url">{t.references.kindUrl}</option>
-        <option value="github_code">{t.references.kindGithub}</option>
-        <option value="spec">{t.references.kindSpec}</option>
-      </select>
-    </label>
-    <input name="title" required placeholder={t.references.titlePlaceholder} class="rounded border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950" />
-    <input name="target" required placeholder={t.references.urlPlaceholder} class="min-w-64 flex-1 rounded border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950" />
-    <button class="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">
+    <select name="kind" aria-label={t.references.kindLabel} class="rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950">
+      <option value="url">{t.references.kindUrl}</option>
+      <option value="github_code">{t.references.kindGithub}</option>
+      <option value="spec">{t.references.kindSpec}</option>
+    </select>
+    <input name="title" required placeholder={t.references.titlePlaceholder} class="rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950" />
+    <input name="target" required placeholder={t.references.urlPlaceholder} class="rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950" />
+    <button class="self-start rounded bg-neutral-900 px-2.5 py-1 text-xs text-white dark:bg-neutral-100 dark:text-neutral-900">
       {t.references.add}
     </button>
   </form>

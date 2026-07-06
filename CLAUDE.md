@@ -31,3 +31,5 @@ Dependency direction is strictly downward: web → providers/db → core.
 - `SpecVersion` rows are immutable; iteration always appends a new version. Block IDs inside `blocks` are stable across versions — they anchor comment threads and the future CRDT layer (ADR-5)
 - Status transitions must go through `@specpasa/core` `lifecycle.ts`; frozen specs are never thawed — fork instead
 - Local CLI / Ollama code paths are Node-only; keep them out of anything that must run on the optional Cloudflare Workers target (ADR-2)
+- Demo/E2E/fixture user is always **James Bond** (`james@bond.com`) — never real names, emails, or other PII in screenshots, seeds, or test fixtures
+- All user-facing copy lives in `apps/web/src/lib/strings.ts` (`APP_NAME`, `pageTitle()`, `t.*`) — no naked string literals in pages or islands; the spec workspace's block wrappers expose stable `data-block-id` anchors that comments (M2) and future CRDT work key on
