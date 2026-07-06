@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { t } from "../lib/strings";
 
 /**
@@ -26,15 +27,23 @@ interface Props {
   threads: CommentThreadCard[];
   onPost?: (blockId: string, body: string) => void | Promise<void>;
   onResolve?: (threadId: string) => void | Promise<void>;
+  /** Additive M2 handlers — cards stay read-only when absent. */
+  onReopen?: (threadId: string) => void | Promise<void>;
+  onReply?: (threadId: string, body: string) => void | Promise<void>;
 }
 
 function ThreadCard({
   thread,
   onResolve,
+  onReopen,
+  onReply,
 }: {
   thread: CommentThreadCard;
   onResolve?: Props["onResolve"];
+  onReopen?: Props["onReopen"];
+  onReply?: Props["onReply"];
 }) {
+  const [reply, setReply] = useState("");
   return (
     <article
       data-thread-block-id={thread.blockId}
@@ -52,22 +61,54 @@ function ThreadCard({
         </div>
       ))}
       {thread.resolved ? (
-        <p className="text-xs text-green-700 dark:text-green-400">{t.workspace.commentsResolved}</p>
+        <p className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400">
+          {t.workspace.commentsResolved}
+          {onReopen && (
+            <button
+              onClick={() => void onReopen(thread.id)}
+              className="text-neutral-500 hover:underline"
+            >
+              {t.comments.reopen}
+            </button>
+          )}
+        </p>
       ) : (
-        onResolve && (
-          <button
-            onClick={() => void onResolve(thread.id)}
-            className="text-xs text-neutral-500 hover:underline"
-          >
-            {t.workspace.commentsResolved}?
-          </button>
-        )
+        <>
+          {onReply && (
+            <div className="mb-2 flex gap-1">
+              <input
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder={t.comments.replyPlaceholder}
+                className="min-w-0 grow rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+              />
+              <button
+                onClick={() => {
+                  if (!reply.trim()) return;
+                  void onReply(thread.id, reply);
+                  setReply("");
+                }}
+                className="rounded bg-neutral-900 px-2 py-1 text-xs text-white dark:bg-neutral-100 dark:text-neutral-900"
+              >
+                {t.comments.reply}
+              </button>
+            </div>
+          )}
+          {onResolve && (
+            <button
+              onClick={() => void onResolve(thread.id)}
+              className="text-xs text-neutral-500 hover:underline"
+            >
+              {t.comments.resolve}
+            </button>
+          )}
+        </>
       )}
     </article>
   );
 }
 
-export default function CommentsRail({ threads, onResolve }: Props) {
+export default function CommentsRail({ threads, onResolve, onReopen, onReply }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
@@ -79,7 +120,13 @@ export default function CommentsRail({ threads, onResolve }: Props) {
         </p>
       ) : (
         threads.map((thread) => (
-          <ThreadCard key={thread.id} thread={thread} onResolve={onResolve} />
+          <ThreadCard
+            key={thread.id}
+            thread={thread}
+            onResolve={onResolve}
+            onReopen={onReopen}
+            onReply={onReply}
+          />
         ))
       )}
     </div>

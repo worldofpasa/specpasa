@@ -1,7 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { getSessionUser, hasAnyUser } from "./lib/auth";
 
-const PUBLIC_PREFIXES = ["/login", "/setup", "/_astro", "/_actions", "/favicon"];
+const PUBLIC_PREFIXES = ["/login", "/setup", "/invite", "/_astro", "/_actions", "/favicon"];
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;

@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { SPECPASA_SECRET } from "astro:env/server";
 import { desc, eq } from "drizzle-orm";
-import { decryptSecret, newId, type SpecBlock } from "@specpasa/core";
+import { canEdit, decryptSecret, newId, type SpecBlock } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import {
   createSpecAgent,
@@ -9,6 +9,7 @@ import {
   ProviderNotImplementedError,
   type AgentRequest,
 } from "@specpasa/providers";
+import { getMembership } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { resolveReferences } from "../../../lib/references";
 
@@ -60,6 +61,8 @@ async function buildAgent(config: typeof schema.ai_provider_configs.$inferSelect
 export const POST: APIRoute = async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return new Response("Unauthorized", { status: 401 });
+  const { role } = await getMembership(user.id);
+  if (!canEdit(role)) return new Response("Your role cannot request drafts", { status: 403 });
 
   const context = await resolveDraftContext(request);
   if (context instanceof Response) return context;

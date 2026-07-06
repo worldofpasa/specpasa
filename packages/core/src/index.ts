@@ -5,3 +5,4 @@ export * from "./block-id.js";
 export * from "./blocks.js";
 export * from "./diff.js";
 export * from "./crypto.js";
+export * from "./roles.js";
