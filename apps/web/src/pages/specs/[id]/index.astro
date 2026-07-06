@@ -57,7 +57,7 @@ const providerConfigs = await db
   );
 const providers = providerConfigs.map((p) => ({
   id: p.id,
-  label: `${p.name} (${p.kind}${p.model ? ` · ${p.model}` : ""})`,
+  label: `${p.name} (${p.kind}${p.model ?? p.cli_command ? ` · ${p.model ?? p.cli_command}` : ""})`,
 }));
 
 const [openThreadRow] = await db

@@ -69,7 +69,7 @@ Milestones M0–M5. Requirement IDs reference [prd.md](./prd.md).
 
 **Goal:** Live collaboration and fully-local AI.
 
-- Local CLI adapters: claude, codex via subprocess; host capability detection endpoint (FR-AI-2, FR-AI-5)
+- Local CLI adapters: claude, codex via subprocess; host capability detection endpoint (FR-AI-2, FR-AI-5) — _landed early as the M5a slice: claude adapter + PATH/Ollama detection + `/api/capabilities`; codex adapter still open_
 - Realtime comments/presence: WebSocket on Node, Durable Objects on Cloudflare (upgrade of FR-COLLAB-5)
 - Cloudflare Workers deploy target hardening (D1, cloud-AI-only feature matrix)
 - MCP exposure of integration adapters (exploration)

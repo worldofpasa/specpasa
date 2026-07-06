@@ -8,6 +8,7 @@ import { type SpecAgent } from "./types.js";
 export const IMPLEMENTED_AI_PROVIDER_KINDS = [
   "anthropic",
   "ollama",
+  "local_cli",
 ] as const satisfies readonly AiProviderKind[];
 export type ImplementedAiProviderKind = (typeof IMPLEMENTED_AI_PROVIDER_KINDS)[number];
 
@@ -17,6 +18,15 @@ export class ProviderNotImplementedError extends Error {
     super(`Provider "${kind}" is not implemented yet (scheduled for ${milestone})`);
   }
 }
+/** Thrown by the runtime-agnostic factory for kinds that need the Node
+ * entry (`@specpasa/providers/node`) — e.g. on a Cloudflare deployment. */
+export class ProviderRequiresNodeError extends Error {
+  constructor(kind: AiProviderKind) {
+    super(
+      `Provider "${kind}" runs only on the Node deploy target — construct it via @specpasa/providers/node (ADR-2)`,
+    );
+  }
+}
 
 export interface AgentConfigInput {
   kind: AiProviderKind;
@@ -24,6 +34,8 @@ export interface AgentConfigInput {
   baseUrl: string | null;
   /** Already decrypted — this package never sees encrypted payloads. */
   apiKey: string | null;
+  /** For local_cli: which host CLI to spawn (allowlisted in the adapter). */
+  cliCommand?: string | null;
 }
 
 function anthropicFromConfig(config: AgentConfigInput): SpecAgent {
@@ -52,7 +64,7 @@ export function createSpecAgent(config: AgentConfigInput): SpecAgent {
     case "google":
       throw new ProviderNotImplementedError(config.kind, "M2+");
     case "local_cli":
-      throw new ProviderNotImplementedError(config.kind, "M5");
+      throw new ProviderRequiresNodeError(config.kind);
     default:
       return assertNever(config.kind, "AiProviderKind");
   }

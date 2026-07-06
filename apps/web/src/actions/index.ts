@@ -18,6 +18,7 @@ import {
 } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
+import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { getDb } from "../lib/db";
 import { t } from "../lib/strings";
@@ -39,6 +40,24 @@ async function requireEditor(context: { session?: { get(key: string): Promise<un
     throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot edit specs" });
   }
   return userId;
+}
+
+/** Per-kind requirements (mirrors the factory's ProviderConfigError guards). */
+function validateProviderInput(input: {
+  kind: string;
+  apiKey?: string;
+  model?: string;
+  cliCommand?: string;
+}): void {
+  if (input.kind === "anthropic" && !input.apiKey) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "Anthropic requires an API key" });
+  }
+  if ((input.kind === "anthropic" || input.kind === "ollama") && !input.model) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "This provider requires a model" });
+  }
+  if (input.kind === "local_cli" && !input.cliCommand) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "Pick which CLI to use" });
+  }
 }
 
 export const server = {
@@ -234,16 +253,15 @@ export const server = {
     input: z.object({
       kind: z.enum(IMPLEMENTED_AI_PROVIDER_KINDS),
       name: z.string().min(1),
-      model: z.string().min(1),
+      model: z.string().optional(),
       apiKey: z.string().optional(),
       baseUrl: z.string().optional(),
+      cliCommand: z.enum(SUPPORTED_CLI_COMMANDS).optional(),
     }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
       const workspace = await getWorkspace(userId);
-      if (input.kind === "anthropic" && !input.apiKey) {
-        throw new ActionError({ code: "BAD_REQUEST", message: "Anthropic requires an API key" });
-      }
+      validateProviderInput(input);
       const ts = now();
       const id = newId();
       await getDb()
@@ -253,8 +271,9 @@ export const server = {
           workspace_id: workspace.id,
           kind: input.kind,
           name: input.name,
-          model: input.model,
+          model: input.model || null,
           base_url: input.baseUrl || null,
+          cli_command: input.cliCommand || null,
           encrypted_credentials: input.apiKey
             ? await encryptSecret(input.apiKey, SPECPASA_SECRET)
             : null,

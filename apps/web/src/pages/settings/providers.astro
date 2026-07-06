@@ -1,7 +1,7 @@
 ---
 import { actions } from "astro:actions";
 import { desc, eq } from "drizzle-orm";
-import { detectLocalProviders } from "@specpasa/providers";
+import { detectLocalProvidersNode, SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { schema } from "@specpasa/db";
 import Base from "../../layouts/Base.astro";
 import { getWorkspace } from "../../lib/auth";
@@ -15,8 +15,7 @@ const configs = await getDb()
   .where(eq(schema.ai_provider_configs.workspace_id, workspace.id))
   .orderBy(desc(schema.ai_provider_configs.created_at));
 
-const detected = await detectLocalProviders();
-const ollamaDetected = detected.find((d) => d.kind === "ollama");
+const detected = await detectLocalProvidersNode();
 ---
 
 <Base title={t.providers.title}>
@@ -27,10 +26,14 @@ const ollamaDetected = detected.find((d) => d.kind === "ollama");
     <div class="mt-4 rounded-lg border border-neutral-200 bg-white p-4 text-sm dark:border-neutral-800 dark:bg-neutral-900">
       <h2 class="font-semibold">{t.providers.detectedHeading}</h2>
       {
-        ollamaDetected ? (
-          <p class="mt-1 text-green-700 dark:text-green-400">{t.providers.ollamaRunning(ollamaDetected.detail)}</p>
+        detected.length > 0 ? (
+          detected.map((entry) => (
+            <p class="mt-1 text-green-700 dark:text-green-400">
+              {t.providers.detectedItem(entry.name, entry.detail)}
+            </p>
+          ))
         ) : (
-          <p class="mt-1 text-neutral-500">{t.providers.ollamaAbsent}</p>
+          <p class="mt-1 text-neutral-500">{t.providers.nothingDetected}</p>
         )
       }
     </div>
@@ -71,6 +74,20 @@ const ollamaDetected = detected.find((d) => d.kind === "ollama");
         <input name="name" required placeholder={t.providers.displayNameOllama} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="model" required placeholder={t.providers.modelPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="baseUrl" placeholder={t.providers.baseUrlPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
+      </form>
+
+      <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
+        <h2 class="text-sm font-semibold">{t.providers.addLocalCli}</h2>
+        <p class="text-xs text-neutral-500">{t.providers.localCliNote}</p>
+        <input type="hidden" name="kind" value="local_cli" />
+        <input name="name" required placeholder={t.providers.displayNameLocalCli} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <label class="flex items-center gap-2 text-sm">
+          {t.providers.cliCommandLabel}
+          <select name="cliCommand" required class="rounded border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+            {SUPPORTED_CLI_COMMANDS.map((command) => <option value={command}>{command}</option>)}
+          </select>
+        </label>
         <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
       </form>
     </div>
