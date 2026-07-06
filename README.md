@@ -6,6 +6,11 @@ specpasa is a self-hosted visual spec builder. Start from rough thoughts and ref
 
 **Goal:** make Spec Driven Development the way of development — connected to the tools, distributed among team members, no silos; add value, not friction.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/landing-dark.png" />
+  <img alt="specpasa landing page (M0 scaffold) running locally" src="docs/assets/landing-light.png" />
+</picture>
+
 ## How it works
 
 1. Create a **project**, invite members, and capture an **intent**.
