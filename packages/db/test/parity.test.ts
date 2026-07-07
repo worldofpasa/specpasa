@@ -18,6 +18,17 @@ interface TableShape {
   indexNames: string[];
 }
 
+/** ADR-3: the portable contract is the ORM-layer value shape. Each SQLite
+ * column type may map only to these pg column types. Runtime round-trips are
+ * covered by the browser E2Es run against both dialects. */
+const COLUMN_TYPE_MAP: Record<string, string[]> = {
+  SQLiteText: ["PgText"],
+  SQLiteTextJson: ["PgJson"],
+  SQLiteBoolean: ["PgBoolean"],
+  // unix-ms timestamps go to bigint; small counts/positions stay integer
+  SQLiteInteger: ["PgBigInt53", "PgInteger"],
+};
+
 function shapeOf(config: {
   name: string;
   columns: readonly {
@@ -68,6 +79,44 @@ describe("sqlite/pg schema parity (ADR-3)", () => {
       const sqliteShape = shapeOf(sqliteConfig(table));
       const pgShape = shapeOf(pgConfig(pgEntry![1]));
       expect(pgShape).toEqual(sqliteShape);
+    });
+
+    it(`table "${exportName}" column types stay within the ADR-3 mapping`, () => {
+      const pgEntry = pgTables.find(([k]) => k === exportName)!;
+      const pgByName = new Map(pgConfig(pgEntry[1]).columns.map((c) => [c.name, c]));
+      for (const column of sqliteConfig(table).columns) {
+        const allowed = COLUMN_TYPE_MAP[column.columnType];
+        expect(allowed, `unmapped sqlite column type ${column.columnType}`).toBeDefined();
+        const pgColumn = pgByName.get(column.name)!;
+        expect(
+          allowed,
+          `${exportName}.${column.name}: ${column.columnType} -> ${pgColumn.columnType}`,
+        ).toContain(pgColumn.columnType);
+      }
+    });
+
+    it(`table "${exportName}" foreign keys reference the same targets`, () => {
+      const pgEntry = pgTables.find(([k]) => k === exportName)!;
+      const fkShape = (
+        fks: readonly {
+          reference: () => {
+            columns: readonly { name: string }[];
+            foreignColumns: readonly { name: string }[];
+          };
+        }[],
+      ) =>
+        fks
+          .map((fk) => {
+            const ref = fk.reference();
+            return {
+              from: ref.columns.map((c) => c.name),
+              to: ref.foreignColumns.map((c) => c.name),
+            };
+          })
+          .sort((a, b) => a.from.join().localeCompare(b.from.join()));
+      expect(fkShape(pgConfig(pgEntry[1]).foreignKeys)).toEqual(
+        fkShape(sqliteConfig(table).foreignKeys),
+      );
     });
   }
 });
