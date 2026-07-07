@@ -23,17 +23,21 @@ specpasa is a self-hosted visual spec builder. Start from rough thoughts and ref
 
 ## A look inside
 
-The spec editor — brainstorm panel below, every save an immutable version:
+The spec workspace — outline and attachments on the left, the document as rendered blocks in the center with a floating Ask AI card, block-anchored comment threads on the right, every save an immutable version:
 
-![Spec editor showing an AI-drafted PRD with the brainstorm panel](docs/assets/m1-editor.png)
+![Three-panel spec workspace: outline, AI-drafted PRD with a mermaid diagram, and a comment thread in the rail](docs/assets/workspace.png)
 
-| Version history — AI drafts are marked                                     | AI providers — local detection + encrypted keys                                     |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| ![Version history with an AI-generated badge](docs/assets/m1-versions.png) | ![Provider settings with Ollama detected on the host](docs/assets/m1-providers.png) |
+Review gates keep collaboration honest — freezing warns while comment threads are still open:
+
+![Freeze control disabled with a "1 comment thread is still open" warning and an explicit Freeze-anyway arm](docs/assets/freeze-warning.png)
+
+| Version history — AI drafts are marked                                  | AI providers — local CLIs & Ollama detected, keys encrypted                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| ![Version history with an AI-generated badge](docs/assets/versions.png) | ![Provider settings detecting Ollama, claude CLI, and codex CLI on the host](docs/assets/providers.png) |
 
 ## Status
 
-Early — **M1 (single-user vertical slice)** is complete on SQLite: blank spec → AI draft → iterate → versioned history with diffs. See [docs/roadmap.md](docs/roadmap.md) for what lands next, and the spec documents this project was (of course) built from:
+**M1–M3 plus the local-CLI slice of M5 are complete** (on SQLite): the full journey from blank spec → AI draft (cloud, Ollama, or the local `claude` CLI — no API key) → inline block-anchored review with roles and invites → freeze → next phase or fork, in a Google-Docs-style three-panel workspace. Next up: M4 integrations (GitHub Issues, Jira, Linear), realtime presence, Postgres parity. See [docs/roadmap.md](docs/roadmap.md), and the spec documents this project was (of course) built from:
 
 - [Product requirements](docs/prd.md)
 - [Domain model](docs/domain-model.md)

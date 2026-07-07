@@ -32,7 +32,8 @@ async function requireUser(context: { session?: { get(key: string): Promise<unkn
   return userId;
 }
 
-/** requireUser + editor-level role (FR-TEN-4): version/draft mutations. */
+/** requireUser + editor-level role (FR-TEN-4): every content/config mutation.
+ * Commenter/viewer roles may only read and use the comment actions below. */
 async function requireEditor(context: { session?: { get(key: string): Promise<unknown> } }) {
   const userId = await requireUser(context);
   const { role } = await getMembership(userId);
@@ -135,7 +136,7 @@ export const server = {
     accept: "form",
     input: z.object({ name: z.string().min(1), description: z.string().optional() }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const workspace = await getWorkspace(userId);
       const ts = now();
       const id = newId();
@@ -163,7 +164,7 @@ export const server = {
       description: z.string().optional(),
     }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const ts = now();
       const id = newId();
       await getDb()
@@ -185,7 +186,7 @@ export const server = {
     accept: "form",
     input: z.object({ intentId: z.string(), title: z.string().min(1) }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const ts = now();
       const id = newId();
       await getDb().insert(schema.specs).values({
@@ -259,7 +260,7 @@ export const server = {
       cliCommand: z.enum(SUPPORTED_CLI_COMMANDS).optional(),
     }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const workspace = await getWorkspace(userId);
       validateProviderInput(input);
       const ts = now();
@@ -289,7 +290,7 @@ export const server = {
     accept: "form",
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
-      await requireUser(context);
+      await requireEditor(context);
       await getDb()
         .delete(schema.ai_provider_configs)
         .where(eq(schema.ai_provider_configs.id, input.id));
@@ -301,7 +302,7 @@ export const server = {
     accept: "form",
     input: z.object({ specId: z.string(), to: z.enum(SPEC_STATUSES) }),
     handler: async (input, context) => {
-      await requireUser(context);
+      await requireEditor(context);
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
@@ -331,7 +332,7 @@ export const server = {
     accept: "form",
     input: z.object({ specId: z.string() }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
@@ -397,7 +398,7 @@ export const server = {
     accept: "form",
     input: z.object({ versionId: z.string() }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const db = getDb();
       const [version] = await db
         .select()
@@ -452,7 +453,7 @@ export const server = {
       target: z.string().min(1),
     }),
     handler: async (input, context) => {
-      const userId = await requireUser(context);
+      const userId = await requireEditor(context);
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
@@ -485,7 +486,7 @@ export const server = {
     accept: "form",
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
-      await requireUser(context);
+      await requireEditor(context);
       await getDb().delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
       return { ok: true };
     },
