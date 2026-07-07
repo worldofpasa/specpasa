@@ -21,6 +21,7 @@ import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { getDb } from "../lib/db";
+import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
 
 const now = () => Date.now();
@@ -603,6 +604,7 @@ export const server = {
         created_at: ts,
         updated_at: ts,
       });
+      publishCommentsChanged(spec.id);
       return { threadId };
     },
   }),
@@ -615,8 +617,14 @@ export const server = {
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
       }
+      const db = getDb();
+      const [thread] = await db
+        .select({ spec_id: schema.comment_threads.spec_id })
+        .from(schema.comment_threads)
+        .where(eq(schema.comment_threads.id, input.threadId));
+      if (!thread) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
       const ts = now();
-      await getDb().insert(schema.comments).values({
+      await db.insert(schema.comments).values({
         id: newId(),
         thread_id: input.threadId,
         author_id: userId,
@@ -624,6 +632,7 @@ export const server = {
         created_at: ts,
         updated_at: ts,
       });
+      publishCommentsChanged(thread.spec_id);
       return { ok: true };
     },
   }),
@@ -636,7 +645,13 @@ export const server = {
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot resolve threads" });
       }
-      await getDb()
+      const db = getDb();
+      const [thread] = await db
+        .select({ spec_id: schema.comment_threads.spec_id })
+        .from(schema.comment_threads)
+        .where(eq(schema.comment_threads.id, input.threadId));
+      if (!thread) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
+      await db
         .update(schema.comment_threads)
         .set(
           input.resolved
@@ -644,6 +659,7 @@ export const server = {
             : { resolved_at: null, resolved_by: null },
         )
         .where(eq(schema.comment_threads.id, input.threadId));
+      publishCommentsChanged(thread.spec_id);
       return { ok: true };
     },
   }),
