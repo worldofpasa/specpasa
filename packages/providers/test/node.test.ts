@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ProviderConfigError } from "../src/factory.js";
 import { parseClaudeStreamLine } from "../src/node/claude-stream.js";
+import { parseCodexStreamLine } from "../src/node/codex-stream.js";
 import { findExecutableOnPath } from "../src/node/detect.js";
 import { createSpecAgentNode } from "../src/node/factory.js";
 
@@ -43,6 +44,48 @@ describe("parseClaudeStreamLine", () => {
       is_error: true,
     });
     expect(parseClaudeStreamLine(bad).kind).toBe("error");
+  });
+});
+
+describe("parseCodexStreamLine", () => {
+  // Shapes recorded from a real `codex exec --json --ephemeral -s read-only
+  // --skip-git-repo-check` run on this machine.
+  it("extracts completed agent messages", () => {
+    const line = JSON.stringify({
+      type: "item.completed",
+      item: { id: "item_0", type: "agent_message", text: "hello" },
+    });
+    expect(parseCodexStreamLine(line)).toEqual({ kind: "message", id: "item_0", text: "hello" });
+  });
+
+  it("handles partial item.updated events with the same shape", () => {
+    const line = JSON.stringify({
+      type: "item.updated",
+      item: { id: "item_0", type: "agent_message", text: "hel" },
+    });
+    expect(parseCodexStreamLine(line)).toEqual({ kind: "message", id: "item_0", text: "hel" });
+  });
+
+  it("ignores thread/turn bookkeeping, reasoning items, and noise", () => {
+    for (const line of [
+      JSON.stringify({ type: "thread.started", thread_id: "t" }),
+      JSON.stringify({ type: "turn.started" }),
+      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1 } }),
+      JSON.stringify({ type: "item.completed", item: { id: "r", type: "reasoning", text: "x" } }),
+      "not json at all",
+    ]) {
+      expect(parseCodexStreamLine(line).kind).toBe("ignore");
+    }
+  });
+
+  it("maps turn.failed and error events to errors", () => {
+    expect(
+      parseCodexStreamLine(JSON.stringify({ type: "turn.failed", error: { message: "boom" } })),
+    ).toEqual({ kind: "error", message: "boom" });
+    expect(parseCodexStreamLine(JSON.stringify({ type: "error", message: "rate limited" }))).toEqual(
+      { kind: "error", message: "rate limited" },
+    );
+    expect(parseCodexStreamLine(JSON.stringify({ type: "turn.failed" })).kind).toBe("error");
   });
 });
 
