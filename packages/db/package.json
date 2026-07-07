@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "node src/migrate.ts",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "generate:pg": "drizzle-kit generate --config drizzle-pg.config.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
