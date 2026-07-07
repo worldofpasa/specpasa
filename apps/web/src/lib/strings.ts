@@ -204,7 +204,8 @@ export const t = {
   },
   integrations: {
     heading: "Integrations",
-    tagline: "Connect this project to the tools your team ships with. Tokens are encrypted at rest.",
+    tagline:
+      "Connect this project to the tools your team ships with. Tokens are encrypted at rest.",
     githubHeading: "GitHub",
     connected: (repo: string) => `Connected to ${repo}`,
     ownerPlaceholder: "Owner (e.g. worldofpasa)",

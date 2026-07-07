@@ -1,8 +1,11 @@
 ---
 import { actions } from "astro:actions";
 import { desc, eq } from "drizzle-orm";
+import { canEdit } from "@specpasa/core";
 import { schema } from "@specpasa/db";
 import Base from "../../layouts/Base.astro";
+import ProjectIntegrations from "../../components/ProjectIntegrations.astro";
+import { getMembership } from "../../lib/auth";
 import { getDb } from "../../lib/db";
 import { pageTitle, t } from "../../lib/strings";
 
@@ -19,8 +22,16 @@ const intents = await db
   .where(eq(schema.intents.project_id, project.id))
   .orderBy(desc(schema.intents.updated_at));
 
+const { role } = await getMembership(Astro.locals.user!.id);
+
 const result = Astro.getActionResult(actions.createIntent);
 if (result && !result.error) return Astro.redirect(`/intents/${result.data.id}`);
+
+// POST-redirect-GET for the integration forms on this page.
+const prgResult =
+  Astro.getActionResult(actions.saveIntegration) ??
+  Astro.getActionResult(actions.deleteIntegration);
+if (prgResult && !prgResult.error) return Astro.redirect(`/projects/${project.id}`);
 ---
 
 <Base title={pageTitle(project.name)}>
@@ -56,5 +67,7 @@ if (result && !result.error) return Astro.redirect(`/intents/${result.data.id}`)
         {t.intents.create}
       </button>
     </form>
+
+    {canEdit(role) && <ProjectIntegrations projectId={project.id} />}
   </main>
 </Base>

@@ -96,7 +96,10 @@ export function createGitHubSink(config: GitHubSinkConfig): IntegrationSink {
       // Existing file → include its sha so the API updates instead of failing.
       let sha: string | undefined;
       try {
-        const existing = await ghFetch<{ sha: string }>(config, `${repoPath}/contents/${path}${ref}`);
+        const existing = await ghFetch<{ sha: string }>(
+          config,
+          `${repoPath}/contents/${path}${ref}`,
+        );
         sha = existing.sha;
       } catch (error) {
         if (!(error instanceof IntegrationError) || error.status !== 404) throw error;

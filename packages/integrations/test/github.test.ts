@@ -28,7 +28,10 @@ describe("exportDocument", () => {
   it("creates a new file when none exists (404 → PUT without sha)", async () => {
     const calls = mockFetch([
       { status: 404, body: {} },
-      { status: 201, body: { content: { html_url: "https://github.com/acme/specs/blob/main/specs/x.md" } } },
+      {
+        status: 201,
+        body: { content: { html_url: "https://github.com/acme/specs/blob/main/specs/x.md" } },
+      },
     ]);
     const [record] = await createGitHubSink(config).exportDocument!({
       title: "X",

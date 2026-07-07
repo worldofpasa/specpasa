@@ -1,0 +1,60 @@
+---
+import { actions } from "astro:actions";
+import { getGitHubIntegration, type GitHubIntegrationConfig } from "../lib/integrations";
+import { t } from "../lib/strings";
+
+interface Props {
+  projectId: string;
+}
+
+const { projectId } = Astro.props;
+const integration = await getGitHubIntegration(projectId);
+const config = integration
+  ? (integration.config as unknown as GitHubIntegrationConfig)
+  : undefined;
+---
+
+<section class="mt-10">
+  <h2 class="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+    {t.integrations.heading}
+  </h2>
+  <p class="mt-1 text-xs text-neutral-500">{t.integrations.tagline}</p>
+
+  {
+    integration && config ? (
+      <div class="mt-3 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <span class="font-medium">{t.integrations.githubHeading}</span>
+        <span class="text-neutral-500">
+          {t.integrations.connected(`${config.owner}/${config.repo}`)}
+          {config.branch ? ` · ${config.branch}` : ""}
+        </span>
+        <span class="text-xs text-neutral-400">{t.integrations.tokenStored}</span>
+        <form method="POST" action={actions.deleteIntegration} class="ml-auto">
+          <input type="hidden" name="id" value={integration.id} />
+          <button class="text-xs text-red-600 hover:underline">{t.integrations.disconnect}</button>
+        </form>
+      </div>
+    ) : (
+      <form
+        method="POST"
+        action={actions.saveIntegration}
+        class="mt-3 flex max-w-lg flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700"
+      >
+        <h3 class="text-sm font-semibold">{t.integrations.githubHeading}</h3>
+        <input type="hidden" name="projectId" value={projectId} />
+        <div class="grid grid-cols-2 gap-3">
+          <input name="owner" required placeholder={t.integrations.ownerPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+          <input name="repo" required placeholder={t.integrations.repoPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <input name="branch" placeholder={t.integrations.branchPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+          <input name="basePath" placeholder={t.integrations.basePathPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        </div>
+        <input name="token" required type="password" placeholder={t.integrations.tokenPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900">
+          {t.integrations.connect}
+        </button>
+      </form>
+    )
+  }
+</section>
