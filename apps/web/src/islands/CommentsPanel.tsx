@@ -75,11 +75,22 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
         };
         window.dispatchEvent(new CustomEvent("specpasa:presence", { detail }));
       });
+      let opened = false;
+      let failures = 0;
+      source.onopen = () => {
+        opened = true;
+        failures = 0;
+      };
       source.onerror = () => {
-        // EventSource retries transient drops itself; only a permanently
-        // closed stream means SSE is unavailable — poll instead.
+        failures += 1;
+        // A CLOSED stream is terminal. A network-level failure never reaches
+        // CLOSED — EventSource retries in CONNECTING forever — so also engage
+        // polling after repeated failures. refresh() is idempotent, so
+        // polling alongside a later-recovering stream is harmless.
         if (source?.readyState === EventSource.CLOSED) {
           source.close();
+          startPolling();
+        } else if ((!opened && failures >= 3) || failures >= 5) {
           startPolling();
         }
       };
