@@ -4,14 +4,14 @@ import { blocksFromMarkdown } from "@specpasa/core";
 import { systemPrompt, userPrompt } from "../prompts.js";
 import { type AgentEvent, type AgentRequest, type SpecAgent } from "../types.js";
 import { parseClaudeStreamLine } from "./claude-stream.js";
+import { parseCodexStreamLine } from "./codex-stream.js";
 
 /**
  * Commands the adapter is allowed to spawn. Never widen this from stored
  * data — cli_command comes from the database and must not become an
- * arbitrary-command execution vector. codex is detected (see detect) but its
- * `--json` event protocol differs; adapter support is a follow-up.
+ * arbitrary-command execution vector.
  */
-export const SUPPORTED_CLI_COMMANDS = ["claude"] as const;
+export const SUPPORTED_CLI_COMMANDS = ["claude", "codex"] as const;
 export type SupportedCliCommand = (typeof SUPPORTED_CLI_COMMANDS)[number];
 
 export function isSupportedCliCommand(command: string): command is SupportedCliCommand {
@@ -24,23 +24,79 @@ export interface LocalCliAgentConfig {
   timeoutMs?: number;
 }
 
-const CLI_ARGS: Record<SupportedCliCommand, (system: string) => string[]> = {
-  claude: (system) => [
-    "-p",
-    "--output-format",
-    "stream-json",
-    "--include-partial-messages",
-    "--verbose",
-    "--system-prompt",
-    system,
-  ],
-};
-
-/** Prefer accumulated deltas; fall back to the result line (covers CLI
- * versions/paths that emit no partial messages). */
-function pickMarkdown(deltas: string, resultText: string | null): string {
-  return deltas || resultText || "";
+/** Per-command wire protocol: argv, stdin payload, and stdout-line handling. */
+interface CliSession {
+  args: string[];
+  stdinPayload: string;
+  /** Map one stdout line to an incremental token and/or an error. */
+  handleLine(line: string): { token?: string; error?: string };
+  /** Final markdown given the accumulated token text (fallbacks applied). */
+  finalMarkdown(accumulated: string): string;
 }
+
+function claudeSession(system: string, user: string): CliSession {
+  let resultText: string | null = null;
+  return {
+    args: [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--include-partial-messages",
+      "--verbose",
+      "--system-prompt",
+      system,
+    ],
+    stdinPayload: user,
+    handleLine(line) {
+      const item = parseClaudeStreamLine(line);
+      if (item.kind === "token") return { token: item.text };
+      if (item.kind === "result") resultText = item.text;
+      if (item.kind === "error") return { error: item.message };
+      return {};
+    },
+    // Prefer accumulated deltas; the result line covers CLI versions/paths
+    // that emit no partial messages.
+    finalMarkdown: (accumulated) => accumulated || resultText || "",
+  };
+}
+
+function codexSession(system: string, user: string): CliSession {
+  // codex has no separate system-prompt channel in exec mode; prepend it.
+  // Agent messages arrive whole per item id — dedup by emitted length so a
+  // defensive item.updated followed by item.completed emits each char once.
+  const emittedLength = new Map<string, number>();
+  return {
+    args: [
+      "exec",
+      "--json",
+      "--ephemeral",
+      "--skip-git-repo-check",
+      "--color",
+      "never",
+      "-s",
+      "read-only",
+      "-",
+    ],
+    stdinPayload: `${system}\n\n${user}`,
+    handleLine(line) {
+      const item = parseCodexStreamLine(line);
+      if (item.kind === "message") {
+        const previous = emittedLength.get(item.id) ?? 0;
+        emittedLength.set(item.id, Math.max(previous, item.text.length));
+        const token = item.text.slice(previous);
+        return token ? { token } : {};
+      }
+      if (item.kind === "error") return { error: item.message };
+      return {};
+    },
+    finalMarkdown: (accumulated) => accumulated,
+  };
+}
+
+const CLI_SESSIONS: Record<SupportedCliCommand, (system: string, user: string) => CliSession> = {
+  claude: claudeSession,
+  codex: codexSession,
+};
 
 function exitFailureEvent(
   command: string,
@@ -64,28 +120,25 @@ export function createLocalCliAgent(config: LocalCliAgentConfig): SpecAgent {
     mode: "draft" | "refine" | "summarize",
   ): AsyncIterable<AgentEvent> {
     let text = "";
-    let resultText: string | null = null;
     let errored = false;
     try {
-      const child = spawn(config.command, CLI_ARGS[config.command](systemPrompt(request)), {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+      const session = CLI_SESSIONS[config.command](systemPrompt(request), userPrompt(request, mode));
+      const child = spawn(config.command, session.args, { stdio: ["pipe", "pipe", "pipe"] });
       const killTimer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
-      child.stdin.end(userPrompt(request, mode));
+      child.stdin.end(session.stdinPayload);
 
       let stderr = "";
       child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
 
       for await (const line of createInterface({ input: child.stdout })) {
-        const item = parseClaudeStreamLine(line);
-        if (item.kind === "token") {
-          text += item.text;
-          yield { type: "token", text: item.text };
-        } else if (item.kind === "result") {
-          resultText = item.text;
-        } else if (item.kind === "error") {
+        const { token, error } = session.handleLine(line);
+        if (token) {
+          text += token;
+          yield { type: "token", text: token };
+        }
+        if (error) {
           errored = true;
-          yield { type: "error", message: item.message };
+          yield { type: "error", message: error };
         }
       }
 
@@ -102,7 +155,7 @@ export function createLocalCliAgent(config: LocalCliAgentConfig): SpecAgent {
       }
       yield {
         type: "done",
-        blocks: blocksFromMarkdown(pickMarkdown(text, resultText), request.blocks),
+        blocks: blocksFromMarkdown(session.finalMarkdown(text), request.blocks),
       };
     } catch (error) {
       yield { type: "error", message: error instanceof Error ? error.message : String(error) };

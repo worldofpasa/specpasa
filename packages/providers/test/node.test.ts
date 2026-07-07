@@ -105,14 +105,16 @@ describe("findExecutableOnPath", () => {
 describe("createSpecAgentNode", () => {
   const base = { model: null, baseUrl: null, apiKey: null };
 
-  it("builds a local CLI agent for an allowlisted command", () => {
-    const agent = createSpecAgentNode({ ...base, kind: "local_cli", cliCommand: "claude" });
-    expect(agent.kind).toBe("local_cli");
-    expect(agent.name).toContain("claude");
+  it("builds a local CLI agent for each allowlisted command", () => {
+    for (const cliCommand of ["claude", "codex"] as const) {
+      const agent = createSpecAgentNode({ ...base, kind: "local_cli", cliCommand });
+      expect(agent.kind).toBe("local_cli");
+      expect(agent.name).toContain(cliCommand);
+    }
   });
 
   it("rejects commands outside the allowlist (no arbitrary spawn from db data)", () => {
-    for (const cliCommand of ["rm", "codex", "", undefined]) {
+    for (const cliCommand of ["rm", "sh", "", undefined]) {
       expect(() => createSpecAgentNode({ ...base, kind: "local_cli", cliCommand })).toThrow(
         ProviderConfigError,
       );
