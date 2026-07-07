@@ -22,6 +22,7 @@ interface Props {
 }
 
 const POLL_MS = 5000;
+const RECONCILE_MS = 30_000;
 
 /**
  * Owns comment data + mutations for the spec workspace (FR-COLLAB-1..5) and
@@ -59,6 +60,10 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
 
   useEffect(() => {
     void refresh();
+    // Slow reconcile poll, always on: the SSE hub fans out within one Node
+    // process only, so a mutation served by a sibling process would never
+    // reach this stream. A 30s refetch bounds that staleness cheaply.
+    const reconcile = window.setInterval(() => void refresh(), RECONCILE_MS);
     let poll: number | undefined;
     const startPolling = () => {
       poll ??= window.setInterval(() => void refresh(), POLL_MS);
@@ -97,6 +102,7 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
     }
     return () => {
       source?.close();
+      window.clearInterval(reconcile);
       if (poll) window.clearInterval(poll);
     };
   }, [refresh, specId]);
