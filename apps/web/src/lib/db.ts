@@ -3,7 +3,7 @@ import { connect, type Db } from "@specpasa/db";
 
 /** One connection per process. DATABASE_URL is validated by astro:env at
  * boot; the file: default resolves relative to apps/web (the dev cwd). */
-const connection = connect(DATABASE_URL);
+const connection = await connect(DATABASE_URL);
 
 /**
  * Runtime-selected schema: SQLite table objects on the default file db,
