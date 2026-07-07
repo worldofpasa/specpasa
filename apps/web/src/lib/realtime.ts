@@ -25,7 +25,12 @@ interface Connection {
   userId: string;
   name: string;
   send: (event: string, data: unknown) => void;
+  /** Hub-initiated shutdown — must run the owning stream's full teardown. */
+  close: () => void;
 }
+
+/** Per user per spec; the oldest connection is closed when exceeded. */
+const MAX_CONNECTIONS_PER_USER = 5;
 
 interface Hub {
   connections: Map<string, Set<Connection>>;
@@ -74,12 +79,20 @@ function broadcastPresence(specId: string): void {
 
 /** Register an SSE connection; returns an unsubscribe function. */
 export function connect(connection: Connection): () => void {
-  connectionsFor(connection.specId).add(connection);
+  const set = connectionsFor(connection.specId);
+  // Cap streams per user per spec (leak/abuse guard). Sets iterate in
+  // insertion order, so the first match is the oldest connection; close()
+  // runs that stream's full teardown, which unregisters it from the set.
+  const mine = [...set].filter((existing) => existing.userId === connection.userId);
+  if (mine.length >= MAX_CONNECTIONS_PER_USER) {
+    mine[0]?.close();
+  }
+  set.add(connection);
   broadcastPresence(connection.specId);
   return () => {
-    const set = hub.connections.get(connection.specId);
-    set?.delete(connection);
-    if (set && set.size === 0) hub.connections.delete(connection.specId);
+    const current = hub.connections.get(connection.specId);
+    current?.delete(connection);
+    if (current && current.size === 0) hub.connections.delete(connection.specId);
     broadcastPresence(connection.specId);
   };
 }
