@@ -7,6 +7,7 @@ import { parseClaudeStreamLine } from "../src/node/claude-stream.js";
 import { parseCodexStreamLine } from "../src/node/codex-stream.js";
 import { findExecutableOnPath } from "../src/node/detect.js";
 import { createSpecAgentNode } from "../src/node/factory.js";
+import { codexSession, createLocalCliAgent } from "../src/node/local-cli.js";
 
 describe("parseClaudeStreamLine", () => {
   // Shapes recorded from a real `claude -p --output-format stream-json
@@ -99,6 +100,52 @@ describe("findExecutableOnPath", () => {
     expect(findExecutableOnPath("fake-cli", dir)).toBe(exe);
     expect(findExecutableOnPath("not-exec", dir)).toBeNull();
     expect(findExecutableOnPath("absent", dir)).toBeNull();
+  });
+});
+
+describe("codexSession", () => {
+  const message = (id: string, text: string, type = "item.completed") =>
+    JSON.stringify({ type, item: { id, type: "agent_message", text } });
+
+  it("streams incremental tokens across item.updated/completed", () => {
+    const session = codexSession("sys", "user");
+    expect(session.handleLine(message("i0", "hel", "item.updated"))).toEqual({ token: "hel" });
+    expect(session.handleLine(message("i0", "hello", "item.updated"))).toEqual({ token: "lo" });
+    expect(session.handleLine(message("i0", "hello"))).toEqual({});
+    expect(session.finalMarkdown("hello")).toBe("hello");
+  });
+
+  it("persists the final completed text even when it revises streamed partials", () => {
+    const session = codexSession("sys", "user");
+    session.handleLine(message("i0", "draft one", "item.updated"));
+    session.handleLine(message("i0", "revised!"));
+    // Streamed deltas may be stale; the done blocks must use the final text.
+    expect(session.finalMarkdown("draft one")).toBe("revised!");
+  });
+
+  it("delimits the system prompt from user content on stdin", () => {
+    const session = codexSession("SYS", "USER");
+    expect(session.stdinPayload.startsWith("<instructions>\nSYS\n</instructions>")).toBe(true);
+    expect(session.stdinPayload.endsWith("USER")).toBe(true);
+  });
+});
+
+describe("createLocalCliAgent failure paths", () => {
+  const request = { prompt: "x", blocks: [], phase: "prd" as const };
+
+  it("surfaces a missing binary as an error event instead of crashing", async () => {
+    const originalPath = process.env.PATH;
+    process.env.PATH = "/nonexistent-dir";
+    try {
+      const agent = createLocalCliAgent({ command: "claude", timeoutMs: 5000 });
+      const events = [];
+      for await (const event of agent.draft(request)) events.push(event);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ type: "error" });
+      expect((events[0] as { message: string }).message).toContain("claude");
+    } finally {
+      process.env.PATH = originalPath;
+    }
   });
 });
 

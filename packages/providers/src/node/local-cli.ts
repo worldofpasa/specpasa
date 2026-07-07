@@ -24,6 +24,9 @@ export interface LocalCliAgentConfig {
   timeoutMs?: number;
 }
 
+/** Bound stderr accumulation — a noisy subprocess must not grow memory unbounded. */
+const STDERR_CAP = 8 * 1024;
+
 /** Per-command wire protocol: argv, stdin payload, and stdout-line handling. */
 interface CliSession {
   args: string[];
@@ -60,11 +63,14 @@ function claudeSession(system: string, user: string): CliSession {
   };
 }
 
-function codexSession(system: string, user: string): CliSession {
-  // codex has no separate system-prompt channel in exec mode; prepend it.
-  // Agent messages arrive whole per item id — dedup by emitted length so a
-  // defensive item.updated followed by item.completed emits each char once.
+/** Exported for unit tests. */
+export function codexSession(system: string, user: string): CliSession {
+  // Tokens streamed to the UI are best-effort deltas (dedup by emitted
+  // length per item id); the PERSISTED markdown always comes from the final
+  // per-item text, so an item.completed that revises earlier partial text
+  // wins over whatever was streamed.
   const emittedLength = new Map<string, number>();
+  const finalTexts = new Map<string, string>();
   return {
     args: [
       "exec",
@@ -77,10 +83,15 @@ function codexSession(system: string, user: string): CliSession {
       "read-only",
       "-",
     ],
-    stdinPayload: `${system}\n\n${user}`,
+    // codex exec has no separate system/instructions channel (verified
+    // against --help): system + user share stdin, delimited explicitly. This
+    // is a weaker injection boundary than claude's --system-prompt —
+    // documented in the PR.
+    stdinPayload: `<instructions>\n${system}\n</instructions>\n\n${user}`,
     handleLine(line) {
       const item = parseCodexStreamLine(line);
       if (item.kind === "message") {
+        finalTexts.set(item.id, item.text);
         const previous = emittedLength.get(item.id) ?? 0;
         emittedLength.set(item.id, Math.max(previous, item.text.length));
         const token = item.text.slice(previous);
@@ -89,7 +100,8 @@ function codexSession(system: string, user: string): CliSession {
       if (item.kind === "error") return { error: item.message };
       return {};
     },
-    finalMarkdown: (accumulated) => accumulated,
+    finalMarkdown: (accumulated) =>
+      finalTexts.size ? [...finalTexts.values()].join("\n\n") : accumulated,
   };
 }
 
@@ -124,11 +136,25 @@ export function createLocalCliAgent(config: LocalCliAgentConfig): SpecAgent {
     try {
       const session = CLI_SESSIONS[config.command](systemPrompt(request), userPrompt(request, mode));
       const child = spawn(config.command, session.args, { stdio: ["pipe", "pipe", "pipe"] });
+      // Attach both handlers synchronously: an unhandled ChildProcess "error"
+      // (missing/broken binary) crashes the server, and "close" is not
+      // guaranteed to fire when spawn itself fails.
+      let spawnError: Error | null = null;
+      const closed = new Promise<number | null>((resolve) => {
+        child.once("close", resolve);
+        child.once("error", (error) => {
+          spawnError = error;
+          resolve(null);
+        });
+      });
       const killTimer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+      child.stdin.on("error", () => undefined); // EPIPE if the child dies first
       child.stdin.end(session.stdinPayload);
 
       let stderr = "";
-      child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr = (stderr + chunk.toString()).slice(-STDERR_CAP); // bounded, keep the tail
+      });
 
       for await (const line of createInterface({ input: child.stdout })) {
         const { token, error } = session.handleLine(line);
@@ -142,21 +168,27 @@ export function createLocalCliAgent(config: LocalCliAgentConfig): SpecAgent {
         }
       }
 
-      const exitCode = await new Promise<number | null>((resolve) => {
-        child.once("close", resolve);
-      });
+      const exitCode = await closed;
       clearTimeout(killTimer);
 
       if (errored) return;
+      if (spawnError !== null) {
+        const message = (spawnError as Error).message;
+        yield { type: "error", message: `failed to run ${config.command}: ${message}` };
+        return;
+      }
       const exitFailure = exitFailureEvent(config.command, exitCode, stderr);
       if (exitFailure) {
         yield exitFailure;
         return;
       }
-      yield {
-        type: "done",
-        blocks: blocksFromMarkdown(session.finalMarkdown(text), request.blocks),
-      };
+      const markdown = session.finalMarkdown(text);
+      if (!markdown.trim()) {
+        // Zero parseable output must not persist an empty version.
+        yield { type: "error", message: `${config.command} produced no output` };
+        return;
+      }
+      yield { type: "done", blocks: blocksFromMarkdown(markdown, request.blocks) };
     } catch (error) {
       yield { type: "error", message: error instanceof Error ? error.message : String(error) };
     }
