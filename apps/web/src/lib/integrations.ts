@@ -35,6 +35,24 @@ export async function getGitHubIntegration(projectId: string) {
   return integration ?? null;
 }
 
+/**
+ * Serialize structure/export mutations per spec so a double-click can't
+ * interleave read-then-insert ledger writes (duplicate issues/rows).
+ * In-process only — multi-process deployments need a db-level unique
+ * constraint, deferred while the schema is frozen (documented in the PR).
+ */
+const specLocks = new Map<string, Promise<unknown>>();
+
+export function withSpecLock<T>(specId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = specLocks.get(specId) ?? Promise.resolve();
+  const run = previous.then(operation, operation);
+  specLocks.set(
+    specId,
+    run.catch(() => undefined),
+  );
+  return run;
+}
+
 export async function buildSink(
   integration: typeof schema.integrations.$inferSelect,
 ): Promise<IntegrationSink | null> {

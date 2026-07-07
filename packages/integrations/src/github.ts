@@ -113,15 +113,19 @@ export function createGitHubSink(config: GitHubSinkConfig): IntegrationSink {
   }
 
   function putFile(path: string, input: DocumentExportInput, sha: string | undefined) {
-    return ghFetch<{ content: { html_url: string | null } }>(config, `${repoPath}/contents/${path}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        message: `spec: ${input.title} (v${input.versionNumber}) via specpasa`,
-        content: toBase64(input.markdown),
-        ...(config.branch ? { branch: config.branch } : {}),
-        ...(sha ? { sha } : {}),
-      }),
-    });
+    return ghFetch<{ content: { html_url: string | null } }>(
+      config,
+      `${repoPath}/contents/${path}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          message: `spec: ${input.title} (v${input.versionNumber}) via specpasa`,
+          content: toBase64(input.markdown),
+          ...(config.branch ? { branch: config.branch } : {}),
+          ...(sha ? { sha } : {}),
+        }),
+      },
+    );
   }
 
   return {

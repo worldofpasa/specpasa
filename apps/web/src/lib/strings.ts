@@ -243,6 +243,8 @@ export const t = {
     exportedDoc: "Document",
     exportedIssue: "Issue",
     reExportNote: "Re-exporting updates the same file and issues — no duplicates.",
+    restructuredNotice: (n: number) =>
+      `${n === 1 ? "1 issue was" : `${n} issues were`} previously exported from the old structure. Re-exporting creates fresh issues; the old GitHub issues remain and may need manual closing.`,
     lastExported: (when: string) => `last exported ${when}`,
   },
 } as const;

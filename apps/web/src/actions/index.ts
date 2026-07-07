@@ -24,7 +24,7 @@ import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { getDb } from "../lib/db";
-import { buildSink, getGitHubIntegration, getSpecContext } from "../lib/integrations";
+import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
 import { t } from "../lib/strings";
 
 const now = () => Date.now();
@@ -839,47 +839,62 @@ export const server = {
       if (!spec.current_version_id) {
         throw new ActionError({ code: "BAD_REQUEST", message: t.editor.blankSpec });
       }
-      const [version] = await db
-        .select()
-        .from(schema.spec_versions)
-        .where(eq(schema.spec_versions.id, spec.current_version_id));
-      const parsed = parseEpicsFromMarkdown(blocksToMarkdown(version!.blocks));
-      // Re-structuring replaces the previous grouping for this version.
-      const stale = await db
-        .select({ id: schema.epics.id })
-        .from(schema.epics)
-        .where(eq(schema.epics.spec_version_id, version!.id));
-      for (const epic of stale) {
-        await db.delete(schema.tasks).where(eq(schema.tasks.epic_id, epic.id));
-      }
-      await db.delete(schema.epics).where(eq(schema.epics.spec_version_id, version!.id));
-      const ts = now();
-      let position = 0;
-      for (const epic of parsed) {
-        const epicId = newId();
-        await db.insert(schema.epics).values({
-          id: epicId,
-          spec_version_id: version!.id,
-          title: epic.title,
-          description: epic.description,
-          position: position++,
-          created_at: ts,
-        });
-        let taskPosition = 0;
-        for (const task of epic.tasks) {
-          await db.insert(schema.tasks).values({
-            id: newId(),
-            epic_id: epicId,
-            spec_version_id: version!.id,
-            title: task.title,
-            description: task.description,
-            position: taskPosition++,
+      return withSpecLock(spec.id, async () => {
+        const [version] = await db
+          .select()
+          .from(schema.spec_versions)
+          .where(eq(schema.spec_versions.id, spec.current_version_id!));
+        if (!version) {
+          throw new ActionError({ code: "NOT_FOUND", message: "Spec version not found" });
+        }
+        const parsed = parseEpicsFromMarkdown(blocksToMarkdown(version.blocks));
+        // Re-structuring replaces the previous grouping for this version.
+        // Old epics' ledger rows must go with them — otherwise re-export
+        // reuses issue numbers that no longer map to any epic. The GitHub
+        // issues created from the old structure remain on GitHub; the UI
+        // surfaces how many were replaced so re-export intent is explicit.
+        const stale = await db
+          .select({ id: schema.epics.id })
+          .from(schema.epics)
+          .where(eq(schema.epics.spec_version_id, version.id));
+        let replacedIssues = 0;
+        for (const epic of stale) {
+          const deleted = await db
+            .delete(schema.export_records)
+            .where(eq(schema.export_records.epic_id, epic.id))
+            .returning({ id: schema.export_records.id });
+          replacedIssues += deleted.length;
+          await db.delete(schema.tasks).where(eq(schema.tasks.epic_id, epic.id));
+        }
+        await db.delete(schema.epics).where(eq(schema.epics.spec_version_id, version.id));
+        const ts = now();
+        let position = 0;
+        for (const epic of parsed) {
+          const epicId = newId();
+          await db.insert(schema.epics).values({
+            id: epicId,
+            spec_version_id: version.id,
+            title: epic.title,
+            description: epic.description,
+            position: position++,
             created_at: ts,
           });
+          let taskPosition = 0;
+          for (const task of epic.tasks) {
+            await db.insert(schema.tasks).values({
+              id: newId(),
+              epic_id: epicId,
+              spec_version_id: version.id,
+              title: task.title,
+              description: task.description,
+              position: taskPosition++,
+              created_at: ts,
+            });
+          }
         }
-      }
-      void userId;
-      return { epics: parsed.length };
+        void userId;
+        return { epics: parsed.length, replacedIssues };
+      });
     },
   }),
 
@@ -906,22 +921,21 @@ export const server = {
       if (!sink.exportDocument) {
         throw new ActionError({ code: "BAD_REQUEST", message: t.export.needsIntegration });
       }
-      const [version] = await db
-        .select()
-        .from(schema.spec_versions)
-        .where(eq(schema.spec_versions.id, spec.current_version_id!));
-      const records = await runSink(() =>
-        sink.exportDocument!({
-          title: spec.title,
-          markdown: blocksToMarkdown(version!.blocks),
-          specId: spec.id,
-          versionNumber: version!.number,
-        }),
-      );
-      for (const record of records) {
-        // One document ledger row per spec+integration: update in place.
+      return withSpecLock(spec.id, async () => {
+        const [version] = await db
+          .select()
+          .from(schema.spec_versions)
+          .where(eq(schema.spec_versions.id, spec.current_version_id!));
+        if (!version) {
+          throw new ActionError({ code: "NOT_FOUND", message: "Spec version not found" });
+        }
+        // One document ledger row per spec+integration; its recorded path is
+        // reused so a renamed spec keeps updating the same file.
         const [prior] = await db
-          .select({ id: schema.export_records.id })
+          .select({
+            id: schema.export_records.id,
+            external_id: schema.export_records.external_id,
+          })
           .from(schema.export_records)
           .innerJoin(
             schema.spec_versions,
@@ -934,15 +948,26 @@ export const server = {
               eq(schema.export_records.external_kind, "document"),
             ),
           );
-        await upsertExportRecord(prior?.id ?? null, {
-          integration_id: integration.id,
-          spec_version_id: version!.id,
-          external_kind: "document",
-          record,
-          userId,
-        });
-      }
-      return { exported: records.length };
+        const records = await runSink(() =>
+          sink.exportDocument!({
+            title: spec.title,
+            markdown: blocksToMarkdown(version.blocks),
+            specId: spec.id,
+            versionNumber: version.number,
+            path: prior?.external_id ?? null,
+          }),
+        );
+        for (const record of records) {
+          await upsertExportRecord(prior?.id ?? null, {
+            integration_id: integration.id,
+            spec_version_id: version.id,
+            external_kind: "document",
+            record,
+            userId,
+          });
+        }
+        return { exported: records.length };
+      });
     },
   }),
 
@@ -958,30 +983,32 @@ export const server = {
       if (!sink.createTasks) {
         throw new ActionError({ code: "BAD_REQUEST", message: t.export.needsIntegration });
       }
-      const exportEpics = await collectExportEpics(spec.current_version_id!, integration.id);
-      const records = await runSink(() =>
-        sink.createTasks!({ specTitle: spec.title, epics: exportEpics }),
-      );
-      for (const record of records) {
-        const [prior] = await db
-          .select({ id: schema.export_records.id })
-          .from(schema.export_records)
-          .where(
-            and(
-              eq(schema.export_records.epic_id, record.internalId),
-              eq(schema.export_records.integration_id, integration.id),
-            ),
-          );
-        await upsertExportRecord(prior?.id ?? null, {
-          integration_id: integration.id,
-          spec_version_id: spec.current_version_id!,
-          epic_id: record.internalId,
-          external_kind: "issue",
-          record,
-          userId,
-        });
-      }
-      return { exported: records.length };
+      return withSpecLock(spec.id, async () => {
+        const exportEpics = await collectExportEpics(spec.current_version_id!, integration.id);
+        const records = await runSink(() =>
+          sink.createTasks!({ specTitle: spec.title, epics: exportEpics }),
+        );
+        for (const record of records) {
+          const [prior] = await db
+            .select({ id: schema.export_records.id })
+            .from(schema.export_records)
+            .where(
+              and(
+                eq(schema.export_records.epic_id, record.internalId),
+                eq(schema.export_records.integration_id, integration.id),
+              ),
+            );
+          await upsertExportRecord(prior?.id ?? null, {
+            integration_id: integration.id,
+            spec_version_id: spec.current_version_id!,
+            epic_id: record.internalId,
+            external_kind: "issue",
+            record,
+            userId,
+          });
+        }
+        return { exported: records.length };
+      });
     },
   }),
 };

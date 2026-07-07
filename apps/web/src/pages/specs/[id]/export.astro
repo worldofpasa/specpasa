@@ -17,13 +17,24 @@ const { spec, project } = specContext;
 const { role } = await getMembership(Astro.locals.user!.id);
 const editor = canEdit(role);
 
+const structureResult = Astro.getActionResult(actions.structureEpics);
+if (structureResult && !structureResult.error) {
+  // Carry the replaced-ledger count through the PRG redirect so the page can
+  // tell the user that previously exported issues no longer map to epics.
+  const replaced = structureResult.data.replacedIssues;
+  return Astro.redirect(
+    `/specs/${spec.id}/export${replaced > 0 ? `?restructured=${replaced}` : ""}`,
+  );
+}
 const prgResult =
-  Astro.getActionResult(actions.structureEpics) ??
+  structureResult ??
   Astro.getActionResult(actions.deleteEpic) ??
   Astro.getActionResult(actions.exportDocument) ??
   Astro.getActionResult(actions.exportTasks);
 const actionError = prgResult?.error;
 if (prgResult && !prgResult.error) return Astro.redirect(`/specs/${spec.id}/export`);
+
+const restructuredCount = Number(Astro.url.searchParams.get("restructured")) || 0;
 
 const integration = await getGitHubIntegration(project.id);
 const config = integration
@@ -87,6 +98,13 @@ const exportRecords = integration
     </h1>
 
     {actionError && <p class="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{actionError.message}</p>}
+    {
+      restructuredCount > 0 && (
+        <p class="mt-4 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          {t.export.restructuredNotice(restructuredCount)}
+        </p>
+      )
+    }
 
     {
       !integration && (
