@@ -1,9 +1,7 @@
 ---
 import { actions } from "astro:actions";
-import { desc, eq } from "drizzle-orm";
-import { schema } from "@specpasa/db";
 import Base from "../../../../layouts/Base.astro";
-import { getDb } from "../../../../lib/db";
+import { getDb, schema, desc, eq } from "../../../../lib/db";
 import { t } from "../../../../lib/strings";
 
 const db = getDb();

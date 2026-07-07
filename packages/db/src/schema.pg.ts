@@ -1,4 +1,13 @@
-import { bigint, boolean, index, integer, json, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  json,
+  pgTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import {
   AI_PROVIDER_KINDS,
   INTEGRATION_KINDS,

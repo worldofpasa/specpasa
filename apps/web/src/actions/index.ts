@@ -1,7 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
 import { SPECPASA_SECRET } from "astro:env/server";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
 import {
   blocksFromMarkdown,
   canAdvancePhase,
@@ -16,11 +15,10 @@ import {
   nextPhase,
   SPEC_STATUSES,
 } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
-import { getDb } from "../lib/db";
+import { getDb, schema, desc, eq } from "../lib/db";
 import { t } from "../lib/strings";
 
 const now = () => Date.now();

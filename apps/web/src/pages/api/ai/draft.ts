@@ -1,8 +1,6 @@
 import type { APIRoute } from "astro";
 import { SPECPASA_SECRET } from "astro:env/server";
-import { desc, eq } from "drizzle-orm";
 import { canEdit, decryptSecret, newId, type SpecBlock } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import {
   ProviderConfigError,
   ProviderNotImplementedError,
@@ -12,7 +10,7 @@ import {
 } from "@specpasa/providers";
 import { createSpecAgentNode } from "@specpasa/providers/node";
 import { getMembership } from "../../../lib/auth";
-import { getDb } from "../../../lib/db";
+import { getDb, schema, desc, eq } from "../../../lib/db";
 import { resolveReferences } from "../../../lib/references";
 
 interface DraftContext {

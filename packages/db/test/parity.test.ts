@@ -47,12 +47,14 @@ function shapeOf(config: {
   };
 }
 
-const sqliteTables = Object.entries(sqliteSchema).filter(
-  (entry): entry is [string, InstanceType<typeof SQLiteTable>] => entry[1] instanceof SQLiteTable,
-);
-const pgTables = Object.entries(pgSchema).filter(
-  (entry): entry is [string, InstanceType<typeof PgTable>] => entry[1] instanceof PgTable,
-);
+const sqliteTables = Object.entries(sqliteSchema).filter(([, v]) => v instanceof SQLiteTable) as [
+  string,
+  SQLiteTable,
+][];
+const pgTables = Object.entries(pgSchema).filter(([, v]) => v instanceof PgTable) as [
+  string,
+  PgTable,
+][];
 
 describe("sqlite/pg schema parity (ADR-3)", () => {
   it("exports the same table set", () => {

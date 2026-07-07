@@ -1,11 +1,24 @@
 import { DATABASE_URL } from "astro:env/server";
-import { createDb, type Db } from "@specpasa/db";
+import { connect, type Db } from "@specpasa/db";
 
-let db: Db | undefined;
+/** One connection per process. DATABASE_URL is validated by astro:env at
+ * boot; the file: default resolves relative to apps/web (the dev cwd). */
+const connection = connect(DATABASE_URL);
 
-/** Singleton db client. DATABASE_URL is validated by astro:env at boot;
- * its default resolves relative to apps/web (the dev cwd). */
+/**
+ * Runtime-selected schema: SQLite table objects on the default file db,
+ * Postgres table objects on postgres:// URLs — always matching getDb()'s
+ * dialect. Import schema from THIS module inside the app, never from
+ * @specpasa/db directly (that export is the SQLite variant only).
+ */
+export const schema = connection.schema;
+
 export function getDb(): Db {
-  db ??= createDb(DATABASE_URL);
-  return db;
+  return connection.db;
 }
+
+export const dbDialect = connection.dialect;
+
+// Single-instance drizzle operators (see @specpasa/db) — import from here,
+// never from "drizzle-orm" directly.
+export { and, asc, count, desc, eq, gt, isNull, ne, or, sql } from "@specpasa/db";
