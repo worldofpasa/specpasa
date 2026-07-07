@@ -6,6 +6,7 @@ import { schema } from "@specpasa/db";
 import Base from "../../../layouts/Base.astro";
 import SpecWorkspace from "../../../islands/SpecWorkspace";
 import CommentsPanel from "../../../islands/CommentsPanel";
+import PresenceChips from "../../../islands/PresenceChips";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
 import { getMembership } from "../../../lib/auth";
@@ -92,7 +93,8 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
           </a>
         </div>
       </div>
-      <div class="ml-auto">
+      <div class="ml-auto flex items-center gap-3">
+        <PresenceChips client:load />
         {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
       </div>
     </header>
