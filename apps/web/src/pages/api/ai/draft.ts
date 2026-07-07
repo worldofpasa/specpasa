@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { SPECPASA_SECRET } from "astro:env/server";
-import { canEdit, decryptSecret, newId, type SpecBlock } from "@specpasa/core";
+import { canEdit, decryptSecret, type SpecBlock } from "@specpasa/core";
 import {
   ProviderConfigError,
   ProviderNotImplementedError,
@@ -10,7 +10,7 @@ import {
 } from "@specpasa/providers";
 import { createSpecAgentNode } from "@specpasa/providers/node";
 import { getMembership } from "../../../lib/auth";
-import { getDb, schema, desc, eq } from "../../../lib/db";
+import { getDb, schema, desc, eq, insertSpecVersion } from "../../../lib/db";
 import { resolveReferences } from "../../../lib/references";
 
 interface DraftContext {
@@ -118,25 +118,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
       try {
         for await (const event of events) {
           if (event.type === "done") {
-            const ts = Date.now();
-            const versionId = newId();
-            const number = (latest?.number ?? 0) + 1;
-            await db.insert(schema.spec_versions).values({
-              id: versionId,
-              spec_id: spec.id,
-              number,
-              parent_version_id: latest?.id ?? null,
+            // Persist against the CURRENT latest, not the one captured before
+            // a potentially minutes-long generation — a manual save landing
+            // mid-stream would otherwise collide on (spec_id, number). The
+            // helper re-reads the latest and retries on unique violation.
+            const { number } = await insertSpecVersion(db, schema, {
+              specId: spec.id,
               blocks: event.blocks,
               summary: `AI ${blocks.length ? "revision" : "draft"}: ${prompt.slice(0, 120)}`,
-              created_by: user.id,
-              ai_generated: true,
-              ai_provider_config_id: config.id,
-              created_at: ts,
+              createdBy: user.id,
+              aiGenerated: true,
+              aiProviderConfigId: config.id,
             });
-            await db
-              .update(schema.specs)
-              .set({ current_version_id: versionId, updated_at: ts })
-              .where(eq(schema.specs.id, spec.id));
             send({ type: "done", number });
           } else {
             send(event);

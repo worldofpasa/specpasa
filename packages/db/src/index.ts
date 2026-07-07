@@ -69,3 +69,4 @@ export function createDb(url = process.env.DATABASE_URL ?? "file:./data/specpasa
 // nominally-typed columns incompatible). App code must not import from
 // "drizzle-orm" directly.
 export { and, asc, count, desc, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
+export * from "./versions.js";

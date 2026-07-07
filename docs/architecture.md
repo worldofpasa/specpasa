@@ -156,7 +156,7 @@ both targets so drift is caught early. Local-AI features are documented as Node-
 **Context.** Individuals self-hosting want zero-dependency startup; teams want
 concurrent-write-safe Postgres; the Cloudflare target only offers D1 (SQLite dialect).
 
-**Decision.** One *logical* schema, declared once per dialect. The SQLite declaration
+**Decision.** One _logical_ schema, declared once per dialect. The SQLite declaration
 (`packages/db/src/schema.ts`) is the source of truth; the Postgres declaration
 (`schema.pg.ts`) mirrors it table-for-table and is **drift-guarded by a parity test in
 CI** (table set, column names, nullability, defaults, primary keys, enum lists, index

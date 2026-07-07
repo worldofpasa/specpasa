@@ -22,3 +22,4 @@ export const dbDialect = connection.dialect;
 // Single-instance drizzle operators (see @specpasa/db) — import from here,
 // never from "drizzle-orm" directly.
 export { and, asc, count, desc, eq, gt, isNull, ne, or, sql } from "@specpasa/db";
+export { insertSpecVersion, isUniqueViolation } from "@specpasa/db";
