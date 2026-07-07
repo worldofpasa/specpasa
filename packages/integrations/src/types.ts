@@ -13,6 +13,9 @@ export interface DocumentExportInput {
   /** Stable identity used for idempotent re-export (file path derivation). */
   specId: string;
   versionNumber: number;
+  /** Previously recorded target path — reused verbatim on re-export so the
+   * document stays at one path across title renames. */
+  path?: string | null;
 }
 
 export interface TaskExportTask {

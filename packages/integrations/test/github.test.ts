@@ -43,7 +43,7 @@ describe("exportDocument", () => {
     expect(put.sha).toBeUndefined();
     expect(put.branch).toBe("main");
     expect(record!.kind).toBe("document");
-    expect(record!.externalId).toBe("specs/x.md");
+    expect(record!.externalId).toBe("specs/x-spec1.md");
   });
 
   it("updates in place when the file exists (sha included → idempotent)", async () => {
@@ -117,5 +117,69 @@ describe("createTasks", () => {
     });
     expect(calls[0]!.url).toContain("/issues/7");
     expect(calls[0]!.init!.method).toBe("PATCH");
+  });
+});
+
+describe("review fixes", () => {
+  it("derives distinct paths for same-titled specs (id suffix)", async () => {
+    const calls = mockFetch([
+      { status: 404, body: {} },
+      { status: 201, body: { content: { html_url: "u" } } },
+    ]);
+    const [record] = await createGitHubSink(config).exportDocument!({
+      title: "X",
+      markdown: "x",
+      specId: "01ABCDEF",
+      versionNumber: 1,
+    });
+    expect(record!.externalId).toBe("specs/x-abcdef.md");
+    expect(calls[0]!.url).toContain("specs/x-abcdef.md");
+  });
+
+  it("reuses the recorded path verbatim on re-export (rename-safe)", async () => {
+    const calls = mockFetch([
+      { status: 200, body: { sha: "s" } },
+      { status: 200, body: { content: { html_url: "u" } } },
+    ]);
+    const [record] = await createGitHubSink(config).exportDocument!({
+      title: "Renamed Title",
+      markdown: "x",
+      specId: "01ABCDEF",
+      versionNumber: 2,
+      path: "specs/original-abcdef.md",
+    });
+    expect(record!.externalId).toBe("specs/original-abcdef.md");
+    expect(calls[0]!.url).toContain("specs/original-abcdef.md");
+  });
+
+  it("retries once on a 409 sha conflict and converges", async () => {
+    const calls = mockFetch([
+      { status: 200, body: { sha: "old" } },
+      { status: 409, body: { message: "is at abc but expected old" } },
+      { status: 200, body: { sha: "new" } },
+      { status: 200, body: { content: { html_url: "u" } } },
+    ]);
+    await createGitHubSink(config).exportDocument!({
+      title: "X",
+      markdown: "x",
+      specId: "s",
+      versionNumber: 1,
+    });
+    expect(calls).toHaveLength(4);
+    expect(JSON.parse(String(calls[3]!.init!.body)).sha).toBe("new");
+  });
+
+  it("bounds every request with an abort signal", async () => {
+    const calls = mockFetch([
+      { status: 404, body: {} },
+      { status: 201, body: { content: { html_url: "u" } } },
+    ]);
+    await createGitHubSink(config).exportDocument!({
+      title: "X",
+      markdown: "x",
+      specId: "s",
+      versionNumber: 1,
+    });
+    for (const call of calls) expect(call.init?.signal).toBeInstanceOf(AbortSignal);
   });
 });

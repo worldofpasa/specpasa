@@ -44,9 +44,13 @@ function toBase64(text: string): string {
   return btoa(binary);
 }
 
+/** Bound every GitHub call so a stalled request can't pin an action. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function ghFetch<T>(config: GitHubSinkConfig, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, {
     ...init,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       authorization: `Bearer ${config.token}`,
       accept: "application/vnd.github+json",
@@ -56,6 +60,7 @@ async function ghFetch<T>(config: GitHubSinkConfig, path: string, init?: Request
     },
   });
   if (!response.ok) {
+    // GitHub error bodies are small bounded JSON; read fully, slice for display.
     const detail = await response.text().catch(() => "");
     throw new IntegrationError(
       `GitHub API ${init?.method ?? "GET"} ${path} failed (${response.status}): ${detail.slice(0, 200)}`,
@@ -65,9 +70,17 @@ async function ghFetch<T>(config: GitHubSinkConfig, path: string, init?: Request
   return (await response.json()) as T;
 }
 
+/**
+ * Stable per-spec path: slug + a short spec-id suffix, so two specs with the
+ * same title never overwrite each other. Callers pass the previously
+ * recorded path on re-export (`input.path`), so renaming a spec keeps
+ * updating the SAME file instead of orphaning it.
+ */
 function documentPath(config: GitHubSinkConfig, input: DocumentExportInput): string {
+  if (input.path) return input.path;
   const dir = (config.basePath ?? "specs").replace(/^\/+|\/+$/g, "");
-  return `${dir ? `${dir}/` : ""}${slugifyTitle(input.title)}.md`;
+  const suffix = input.specId.slice(-6).toLowerCase();
+  return `${dir ? `${dir}/` : ""}${slugifyTitle(input.title)}-${suffix}.md`;
 }
 
 function epicIssueBody(specTitle: string, epic: TaskExportEpic): string {
@@ -87,36 +100,43 @@ function epicIssueBody(specTitle: string, epic: TaskExportEpic): string {
 export function createGitHubSink(config: GitHubSinkConfig): IntegrationSink {
   const repoPath = `/repos/${config.owner}/${config.repo}`;
 
+  // Existing file → its sha is required so the API updates instead of failing.
+  async function getFileSha(path: string): Promise<string | undefined> {
+    const ref = config.branch ? `?ref=${encodeURIComponent(config.branch)}` : "";
+    try {
+      const existing = await ghFetch<{ sha: string }>(config, `${repoPath}/contents/${path}${ref}`);
+      return existing.sha;
+    } catch (error) {
+      if (error instanceof IntegrationError && error.status === 404) return undefined;
+      throw error;
+    }
+  }
+
+  function putFile(path: string, input: DocumentExportInput, sha: string | undefined) {
+    return ghFetch<{ content: { html_url: string | null } }>(config, `${repoPath}/contents/${path}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        message: `spec: ${input.title} (v${input.versionNumber}) via specpasa`,
+        content: toBase64(input.markdown),
+        ...(config.branch ? { branch: config.branch } : {}),
+        ...(sha ? { sha } : {}),
+      }),
+    });
+  }
+
   return {
     kind: "github",
 
     async exportDocument(input: DocumentExportInput): Promise<ExternalRecord[]> {
       const path = documentPath(config, input);
-      const ref = config.branch ? `?ref=${encodeURIComponent(config.branch)}` : "";
-      // Existing file → include its sha so the API updates instead of failing.
-      let sha: string | undefined;
+      let result;
       try {
-        const existing = await ghFetch<{ sha: string }>(
-          config,
-          `${repoPath}/contents/${path}${ref}`,
-        );
-        sha = existing.sha;
+        result = await putFile(path, input, await getFileSha(path));
       } catch (error) {
-        if (!(error instanceof IntegrationError) || error.status !== 404) throw error;
+        // Concurrent write moved the sha under us → converge: re-read, retry once.
+        if (!(error instanceof IntegrationError) || error.status !== 409) throw error;
+        result = await putFile(path, input, await getFileSha(path));
       }
-      const result = await ghFetch<{ content: { html_url: string | null } }>(
-        config,
-        `${repoPath}/contents/${path}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            message: `spec: ${input.title} (v${input.versionNumber}) via specpasa`,
-            content: toBase64(input.markdown),
-            ...(config.branch ? { branch: config.branch } : {}),
-            ...(sha ? { sha } : {}),
-          }),
-        },
-      );
       return [
         {
           kind: "document",
