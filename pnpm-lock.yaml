@@ -44,6 +44,9 @@ importers:
       '@specpasa/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@specpasa/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@specpasa/providers':
         specifier: workspace:*
         version: link:../../packages/providers
