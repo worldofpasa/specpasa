@@ -63,6 +63,13 @@ docker compose up            # SQLite in ./data by default
 docker compose --profile postgres up   # optional Postgres for teams
 ```
 
+To run the app against Postgres, point `DATABASE_URL` at it — the dialect is picked from the URL and migrations route automatically:
+
+```sh
+DATABASE_URL=postgres://specpasa:specpasa@localhost:5432/specpasa pnpm db:migrate
+DATABASE_URL=postgres://specpasa:specpasa@localhost:5432/specpasa pnpm dev
+```
+
 The Node/Docker deployment is the default target — it's what enables local CLI and Ollama detection. A Cloudflare Workers target (cloud AI only) is planned; see ADR-2 in [docs/architecture.md](docs/architecture.md).
 
 ## License
