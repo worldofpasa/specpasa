@@ -20,6 +20,7 @@ import { schema } from "@specpasa/db";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
+import { specInWorkspace, threadSpecInWorkspace } from "../lib/authz";
 import { getDb } from "../lib/db";
 import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
@@ -576,9 +577,13 @@ export const server = {
     }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
-      const { role } = await getMembership(userId);
+      const { workspace, role } = await getMembership(userId);
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
+      }
+      // Object-level authz: spec must resolve into the caller's workspace.
+      if (!(await specInWorkspace(input.specId, workspace.id))) {
+        throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
       }
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
@@ -613,16 +618,14 @@ export const server = {
     input: z.object({ threadId: z.string(), body: z.string().min(1) }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
-      const { role } = await getMembership(userId);
+      const { workspace, role } = await getMembership(userId);
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
       }
       const db = getDb();
-      const [thread] = await db
-        .select({ spec_id: schema.comment_threads.spec_id })
-        .from(schema.comment_threads)
-        .where(eq(schema.comment_threads.id, input.threadId));
-      if (!thread) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
+      // Object-level authz: thread must resolve into the caller's workspace.
+      const threadSpecId = await threadSpecInWorkspace(input.threadId, workspace.id);
+      if (!threadSpecId) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
       const ts = now();
       await db.insert(schema.comments).values({
         id: newId(),
@@ -632,7 +635,7 @@ export const server = {
         created_at: ts,
         updated_at: ts,
       });
-      publishCommentsChanged(thread.spec_id);
+      publishCommentsChanged(threadSpecId);
       return { ok: true };
     },
   }),
@@ -641,16 +644,14 @@ export const server = {
     input: z.object({ threadId: z.string(), resolved: z.boolean() }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
-      const { role } = await getMembership(userId);
+      const { workspace, role } = await getMembership(userId);
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot resolve threads" });
       }
       const db = getDb();
-      const [thread] = await db
-        .select({ spec_id: schema.comment_threads.spec_id })
-        .from(schema.comment_threads)
-        .where(eq(schema.comment_threads.id, input.threadId));
-      if (!thread) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
+      // Object-level authz: thread must resolve into the caller's workspace.
+      const resolvedSpecId = await threadSpecInWorkspace(input.threadId, workspace.id);
+      if (!resolvedSpecId) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
       await db
         .update(schema.comment_threads)
         .set(
@@ -659,7 +660,7 @@ export const server = {
             : { resolved_at: null, resolved_by: null },
         )
         .where(eq(schema.comment_threads.id, input.threadId));
-      publishCommentsChanged(thread.spec_id);
+      publishCommentsChanged(resolvedSpecId);
       return { ok: true };
     },
   }),

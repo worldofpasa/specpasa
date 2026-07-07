@@ -1,8 +1,7 @@
 import type { APIRoute } from "astro";
-import { eq } from "drizzle-orm";
 import { newId } from "@specpasa/core";
-import { schema } from "@specpasa/db";
-import { getDb } from "../../../../lib/db";
+import { getMembership } from "../../../../lib/auth";
+import { specInWorkspace } from "../../../../lib/authz";
 import { connect, viewersFor } from "../../../../lib/realtime";
 
 const HEARTBEAT_MS = 15_000;
@@ -18,40 +17,58 @@ export const GET: APIRoute = async ({ params, locals }) => {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const specId = params.id!;
-  const [spec] = await getDb()
-    .select({ id: schema.specs.id })
-    .from(schema.specs)
-    .where(eq(schema.specs.id, specId));
-  if (!spec) return new Response("Spec not found", { status: 404 });
+  // Object-level authz: the spec must resolve into the caller's workspace
+  // (roles are workspace-global today — see lib/authz.ts). 404 either way so
+  // foreign ids are indistinguishable from missing ones.
+  const { workspace } = await getMembership(user.id);
+  if (!(await specInWorkspace(specId, workspace.id))) {
+    return new Response("Spec not found", { status: 404 });
+  }
 
   const encoder = new TextEncoder();
-  let heartbeat: ReturnType<typeof setInterval> | undefined;
-  let disconnect: (() => void) | undefined;
 
+  let teardown: (() => void) | undefined;
   const stream = new ReadableStream({
     start(controller) {
       const send = (event: string, data: unknown) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
-      disconnect = connect({
+      let closed = false;
+      // Single teardown path for every exit: client cancel, heartbeat
+      // failure, or hub-initiated close (connection cap). Always unregisters
+      // presence — a cleared interval alone would leak a ghost viewer.
+      // Hoisted declaration: it only runs after disconnect/heartbeat exist.
+      function runTeardown() {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        disconnect();
+        try {
+          controller.close();
+        } catch {
+          // Stream already errored/closed — nothing left to release.
+        }
+      }
+      teardown = runTeardown;
+      const disconnect = connect({
         id: newId(),
         specId,
         userId: user.id,
         name: user.name,
         send,
+        close: runTeardown,
       });
       send("presence", { viewers: viewersFor(specId) });
-      heartbeat = setInterval(() => {
+      const heartbeat = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(`: ping\n\n`));
         } catch {
-          clearInterval(heartbeat);
+          runTeardown();
         }
       }, HEARTBEAT_MS);
     },
     cancel() {
-      if (heartbeat) clearInterval(heartbeat);
-      disconnect?.();
+      teardown?.();
     },
   });
 
