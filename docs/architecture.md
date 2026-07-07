@@ -156,20 +156,32 @@ both targets so drift is caught early. Local-AI features are documented as Node-
 **Context.** Individuals self-hosting want zero-dependency startup; teams want
 concurrent-write-safe Postgres; the Cloudflare target only offers D1 (SQLite dialect).
 
-**Decision.** One Drizzle schema, two dialects. Default is a libsql/SQLite file (works
-out of the box, and is what D1 speaks). Postgres is an opt-in docker-compose profile via
-`DATABASE_URL`. To keep the schema portable we constrain ourselves to the common subset:
+**Decision.** One *logical* schema, declared once per dialect. The SQLite declaration
+(`packages/db/src/schema.ts`) is the source of truth; the Postgres declaration
+(`schema.pg.ts`) mirrors it table-for-table and is **drift-guarded by a parity test in
+CI** (table set, column names, nullability, defaults, primary keys, enum lists, index
+names, FK references, and a column-type mapping). Default is a libsql/SQLite file (works
+out of the box, and is what D1 speaks). Postgres is opt-in purely via `DATABASE_URL`.
 
-- Column types limited to `text`, `integer`, and JSON-serialized-as-`text`.
-- Primary keys are application-generated ULIDs (sortable, no DB sequences/autoincrement).
-- Timestamps stored as epoch-milliseconds integers, converted at the edge.
-- No dialect-specific features in the core schema: no Postgres enums (enums are `text`
-  checked in `core`), no JSONB operators in queries, no triggers, no partial indexes.
-- Migrations generated per dialect by `drizzle-kit` from the same schema source.
+The **portable contract lives at the ORM layer**, not at the storage-type level: every
+column must present the identical TypeScript value shape (string / number / boolean /
+JSON object) through Drizzle in both dialects. Within that contract, each dialect may use
+its natural native type where Drizzle normalizes it:
 
-**Consequences.** We give up some Postgres power (JSONB indexing, pgvector) in the core
-schema; if RAG-over-references later needs pgvector, it lands in a Postgres-only optional
-module, never in core tables. Dual migration sets must both be generated and tested in CI.
+- IDs are application-generated ULID `text` (sortable, no DB sequences/autoincrement).
+- Timestamps are epoch-millisecond numbers — sqlite `integer`, pg `bigint(mode: number)`.
+- Booleans — sqlite `integer(mode: boolean)`, pg `boolean`.
+- JSON payloads — sqlite `text(mode: json)`, pg `json`. No JSONB operators in queries.
+- Enums are `text` with the enum list from `core` in both dialects — no Postgres enums,
+  triggers, or partial indexes.
+- Migrations are generated per dialect by `drizzle-kit` from that dialect's declaration
+  (`drizzle/` and `drizzle-pg/`).
+
+**Consequences.** Two declarations must be kept in sync — that burden is carried by the
+parity test, not by reviewer vigilance. We give up some Postgres power (JSONB indexing,
+pgvector) in the core schema; if RAG-over-references later needs pgvector, it lands in a
+Postgres-only optional module, never in core tables. Dual migration sets must both be
+generated and tested in CI.
 
 ### ADR-4 — AI provider layer: one `SpecAgent` interface, many adapters
 
