@@ -151,6 +151,10 @@ export const t = {
     kindUrl: "URL",
     kindGithub: "GitHub file",
     kindSpec: "Spec",
+    kindShort: (kind: string) =>
+      (({ url: "URL", github_code: "GH", spec: "SPEC", file: "FILE" }) as Record<string, string>)[
+        kind
+      ] ?? kind,
     titlePlaceholder: "Title",
     urlPlaceholder: "https://…",
     githubPlaceholder: "https://github.com/owner/repo/blob/main/path/to/file.ts",
@@ -219,6 +223,20 @@ export const t = {
     composerHeading: "New comment",
     cancel: "Cancel",
     selectHint: "Hover a block in the document and click + to start a thread.",
+  },
+  connectors: {
+    heading: "Connectors",
+    on: "On",
+    connect: "Connect",
+    soon: "Soon",
+    github: "GitHub",
+    githubDetail: "Docs & issues export",
+    drive: "Google Drive",
+    driveDetail: "Reference sync",
+    confluence: "Confluence",
+    confluenceDetail: "Spec sync",
+    jira: "Jira",
+    jiraDetail: "Task export",
   },
   integrations: {
     heading: "Integrations",

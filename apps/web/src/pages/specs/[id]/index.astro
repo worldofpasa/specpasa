@@ -7,6 +7,7 @@ import CommentsPanel from "../../../islands/CommentsPanel";
 import PresenceChips from "../../../islands/PresenceChips";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
+import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
 import { getDb, schema, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
@@ -152,8 +153,9 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
           canEditDoc={canEdit(role)}
           commentsEnabled={canComment(role)}
         >
-          <div slot="attachments">
+          <div slot="attachments" class="flex flex-col gap-4">
             <SpecReferences specId={spec.id} />
+            <Connectors projectId={intent!.project_id} />
           </div>
         </SpecWorkspace>
       </div>

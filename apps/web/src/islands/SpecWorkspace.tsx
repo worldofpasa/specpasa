@@ -122,11 +122,11 @@ function Outline({ entries }: { entries: TocEntry[] }) {
   }, [entries]);
 
   if (entries.length === 0) {
-    return <p className="px-2 text-xs text-neutral-500">{t.workspace.outlineEmpty}</p>;
+    return <p className="px-3 py-2 text-xs text-neutral-500">{t.workspace.outlineEmpty}</p>;
   }
   return (
-    <nav className="flex flex-col gap-0.5 text-sm">
-      {groups.map((group) => (
+    <nav className="flex flex-col gap-0.5 p-2 text-sm">
+      {groups.map((group, groupIndex) => (
         <div key={group.head.blockId}>
           <div className="flex items-center gap-1">
             {group.children.length > 0 && (
@@ -139,26 +139,32 @@ function Outline({ entries }: { entries: TocEntry[] }) {
                     return next;
                   })
                 }
-                className="w-4 text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="w-4 text-xs text-neutral-400 hover:text-ink"
               >
                 {collapsed.has(group.head.blockId) ? "▸" : "▾"}
               </button>
             )}
             <button
               onClick={() => scrollToBlock(group.head.blockId)}
-              className="flex-1 truncate rounded px-2 py-1 text-left font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="flex min-w-0 flex-1 items-baseline gap-2 rounded px-2 py-1 text-left font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
-              {group.head.text}
+              <span className="shrink-0 font-mono text-[10px] text-neutral-400">
+                {groupIndex + 1}.0
+              </span>
+              <span className="truncate">{group.head.text}</span>
             </button>
           </div>
           {!collapsed.has(group.head.blockId) &&
-            group.children.map((child) => (
+            group.children.map((child, childIndex) => (
               <button
                 key={child.blockId}
                 onClick={() => scrollToBlock(child.blockId)}
-                className={`block w-full truncate rounded px-2 py-0.5 text-left text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 ${child.level === 2 ? "ml-5" : "ml-9"}`}
+                className={`flex w-full min-w-0 items-baseline gap-2 rounded px-2 py-0.5 text-left text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800 ${child.level === 2 ? "ml-5" : "ml-9"}`}
               >
-                {child.text}
+                <span className="shrink-0 font-mono text-[10px] text-neutral-400">
+                  {groupIndex + 1}.{childIndex + 1}
+                </span>
+                <span className="truncate">{child.text}</span>
               </button>
             ))}
         </div>
@@ -418,13 +424,15 @@ export default function SpecWorkspace({
           {leftOpen ? "«" : "»"}
         </button>
         {leftOpen && (
-          <>
-            <h2 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              {t.workspace.outline}
-            </h2>
-            <Outline entries={toc} />
-            <div className="mt-6">{attachments}</div>
-          </>
+          <div className="flex flex-col gap-4">
+            <div className="rounded border border-line bg-sheet">
+              <h2 className="border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                {t.workspace.outline}
+              </h2>
+              <Outline entries={toc} />
+            </div>
+            {attachments}
+          </div>
         )}
       </aside>
 
