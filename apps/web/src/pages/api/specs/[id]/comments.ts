@@ -1,4 +1,6 @@
 import type { APIRoute } from "astro";
+import { getMembership } from "../../../../lib/auth";
+import { specInWorkspace } from "../../../../lib/authz";
 import { getDb, schema, asc, eq } from "../../../../lib/db";
 
 export interface ThreadPayload {
@@ -11,6 +13,11 @@ export interface ThreadPayload {
 /** Comment state for a spec — polled by the Comments island (FR-COLLAB-5). */
 export const GET: APIRoute = async ({ params, locals }) => {
   if (!locals.user) return new Response("Unauthorized", { status: 401 });
+  // Object-level authz: same workspace-scope rule as the SSE stream.
+  const { workspace } = await getMembership(locals.user.id);
+  if (!(await specInWorkspace(params.id!, workspace.id))) {
+    return new Response("Spec not found", { status: 404 });
+  }
   const db = getDb();
   const threads = await db
     .select()

@@ -22,12 +22,18 @@ interface Props {
 }
 
 const POLL_MS = 5000;
+const RECONCILE_MS = 30_000;
 
 /**
  * Owns comment data + mutations for the spec workspace (FR-COLLAB-1..5) and
  * feeds the presentational CommentsRail. Block selection arrives from the
  * document sheet's "+" affordance via the `specpasa:comment-block` event —
  * islands can't exchange function props across the Astro boundary.
+ *
+ * Live updates (ADR-6): subscribes to the spec's SSE stream; a `comments`
+ * event triggers a refetch, `presence` events are re-dispatched to the
+ * PresenceChips island via `specpasa:presence`. If the stream closes for
+ * good, falls back to the original 5s polling.
  */
 export default function CommentsPanel({ specId, blocks, canComment }: Props) {
   const [threads, setThreads] = useState<ApiThread[]>([]);
@@ -54,9 +60,52 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
 
   useEffect(() => {
     void refresh();
-    const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(timer);
-  }, [refresh]);
+    // Slow reconcile poll, always on: the SSE hub fans out within one Node
+    // process only, so a mutation served by a sibling process would never
+    // reach this stream. A 30s refetch bounds that staleness cheaply.
+    const reconcile = window.setInterval(() => void refresh(), RECONCILE_MS);
+    let poll: number | undefined;
+    const startPolling = () => {
+      poll ??= window.setInterval(() => void refresh(), POLL_MS);
+    };
+    let source: EventSource | undefined;
+    if (typeof EventSource === "undefined") {
+      startPolling();
+    } else {
+      source = new EventSource(`/api/specs/${specId}/events`);
+      source.addEventListener("comments", () => void refresh());
+      source.addEventListener("presence", (event) => {
+        const detail = JSON.parse((event as MessageEvent).data) as {
+          viewers: { userId: string; name: string }[];
+        };
+        window.dispatchEvent(new CustomEvent("specpasa:presence", { detail }));
+      });
+      let opened = false;
+      let failures = 0;
+      source.onopen = () => {
+        opened = true;
+        failures = 0;
+      };
+      source.onerror = () => {
+        failures += 1;
+        // A CLOSED stream is terminal. A network-level failure never reaches
+        // CLOSED — EventSource retries in CONNECTING forever — so also engage
+        // polling after repeated failures. refresh() is idempotent, so
+        // polling alongside a later-recovering stream is harmless.
+        if (source?.readyState === EventSource.CLOSED) {
+          source.close();
+          startPolling();
+        } else if ((!opened && failures >= 3) || failures >= 5) {
+          startPolling();
+        }
+      };
+    }
+    return () => {
+      source?.close();
+      window.clearInterval(reconcile);
+      if (poll) window.clearInterval(poll);
+    };
+  }, [refresh, specId]);
 
   useEffect(() => {
     const onSelect = (event: Event) => {

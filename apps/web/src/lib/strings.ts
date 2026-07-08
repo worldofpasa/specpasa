@@ -202,4 +202,8 @@ export const t = {
     cancel: "Cancel",
     selectHint: "Hover a block in the document and click + to start a thread.",
   },
+  presence: {
+    viewing: (name: string) => `${name} is viewing`,
+    label: "Currently viewing",
+  },
 } as const;

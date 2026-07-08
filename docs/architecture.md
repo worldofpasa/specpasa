@@ -262,6 +262,12 @@ transport upgrades, the data model doesn't.
 review-and-comment workflows. The append-only discipline costs a little write complexity
 now but makes the M5 upgrade purely additive.
 
+**Status (M5).** Shipped on the Node target: an SSE stream per open spec
+(`/api/specs/:id/events`) pushes comment-changed signals and connection-derived presence
+from an in-process hub; the rail falls back to polling if the stream closes. The hub is
+single-process by design — multi-process Node needs a shared broker, and the Cloudflare
+target still awaits Durable Objects.
+
 ### ADR-7 — Integrations: sink adapters, MCP-ready
 
 **Context.** Frozen specs must flow outward: PRD/ERD documents to GitHub (markdown in a
