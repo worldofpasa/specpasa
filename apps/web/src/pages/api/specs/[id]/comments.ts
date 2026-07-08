@@ -1,9 +1,7 @@
 import type { APIRoute } from "astro";
-import { asc, eq } from "drizzle-orm";
-import { schema } from "@specpasa/db";
 import { getMembership } from "../../../../lib/auth";
 import { specInWorkspace } from "../../../../lib/authz";
-import { getDb } from "../../../../lib/db";
+import { getDb, schema, asc, eq } from "../../../../lib/db";
 
 export interface ThreadPayload {
   id: string;

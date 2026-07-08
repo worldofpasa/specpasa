@@ -1,6 +1,4 @@
-import { and, eq } from "drizzle-orm";
-import { schema } from "@specpasa/db";
-import { getDb } from "./db";
+import { and, eq, getDb, schema } from "./db";
 
 /**
  * Object-level authorization helpers. Roles are workspace-global today

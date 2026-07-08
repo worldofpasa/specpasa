@@ -4,14 +4,14 @@ import { blocksFromMarkdown } from "@specpasa/core";
 import { systemPrompt, userPrompt } from "../prompts.js";
 import { type AgentEvent, type AgentRequest, type SpecAgent } from "../types.js";
 import { parseClaudeStreamLine } from "./claude-stream.js";
+import { parseCodexStreamLine } from "./codex-stream.js";
 
 /**
  * Commands the adapter is allowed to spawn. Never widen this from stored
  * data — cli_command comes from the database and must not become an
- * arbitrary-command execution vector. codex is detected (see detect) but its
- * `--json` event protocol differs; adapter support is a follow-up.
+ * arbitrary-command execution vector.
  */
-export const SUPPORTED_CLI_COMMANDS = ["claude"] as const;
+export const SUPPORTED_CLI_COMMANDS = ["claude", "codex"] as const;
 export type SupportedCliCommand = (typeof SUPPORTED_CLI_COMMANDS)[number];
 
 export function isSupportedCliCommand(command: string): command is SupportedCliCommand {
@@ -24,23 +24,91 @@ export interface LocalCliAgentConfig {
   timeoutMs?: number;
 }
 
-const CLI_ARGS: Record<SupportedCliCommand, (system: string) => string[]> = {
-  claude: (system) => [
-    "-p",
-    "--output-format",
-    "stream-json",
-    "--include-partial-messages",
-    "--verbose",
-    "--system-prompt",
-    system,
-  ],
-};
+/** Bound stderr accumulation — a noisy subprocess must not grow memory unbounded. */
+const STDERR_CAP = 8 * 1024;
 
-/** Prefer accumulated deltas; fall back to the result line (covers CLI
- * versions/paths that emit no partial messages). */
-function pickMarkdown(deltas: string, resultText: string | null): string {
-  return deltas || resultText || "";
+/** Per-command wire protocol: argv, stdin payload, and stdout-line handling. */
+interface CliSession {
+  args: string[];
+  stdinPayload: string;
+  /** Map one stdout line to an incremental token and/or an error. */
+  handleLine(line: string): { token?: string; error?: string };
+  /** Final markdown given the accumulated token text (fallbacks applied). */
+  finalMarkdown(accumulated: string): string;
 }
+
+function claudeSession(system: string, user: string): CliSession {
+  let resultText: string | null = null;
+  return {
+    args: [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--include-partial-messages",
+      "--verbose",
+      "--system-prompt",
+      system,
+    ],
+    stdinPayload: user,
+    handleLine(line) {
+      const item = parseClaudeStreamLine(line);
+      if (item.kind === "token") return { token: item.text };
+      if (item.kind === "result") resultText = item.text;
+      if (item.kind === "error") return { error: item.message };
+      return {};
+    },
+    // Prefer accumulated deltas; the result line covers CLI versions/paths
+    // that emit no partial messages.
+    finalMarkdown: (accumulated) => accumulated || resultText || "",
+  };
+}
+
+/** Exported for unit tests. */
+export function codexSession(system: string, user: string): CliSession {
+  // Tokens streamed to the UI are best-effort deltas (dedup by emitted
+  // length per item id); the PERSISTED markdown always comes from the final
+  // per-item text, so an item.completed that revises earlier partial text
+  // wins over whatever was streamed.
+  const emittedLength = new Map<string, number>();
+  const finalTexts = new Map<string, string>();
+  return {
+    args: [
+      "exec",
+      "--json",
+      "--ephemeral",
+      "--skip-git-repo-check",
+      "--color",
+      "never",
+      "-s",
+      "read-only",
+      "-",
+    ],
+    // codex exec has no separate system/instructions channel (verified
+    // against --help): system + user share stdin, delimited explicitly. This
+    // is a weaker injection boundary than claude's --system-prompt —
+    // documented in the PR.
+    stdinPayload: `<instructions>\n${system}\n</instructions>\n\n${user}`,
+    handleLine(line) {
+      const item = parseCodexStreamLine(line);
+      if (item.kind === "message") {
+        finalTexts.set(item.id, item.text);
+        const previous = emittedLength.get(item.id) ?? 0;
+        emittedLength.set(item.id, Math.max(previous, item.text.length));
+        const token = item.text.slice(previous);
+        return token ? { token } : {};
+      }
+      if (item.kind === "error") return { error: item.message };
+      return {};
+    },
+    finalMarkdown: (accumulated) =>
+      finalTexts.size ? [...finalTexts.values()].join("\n\n") : accumulated,
+  };
+}
+
+const CLI_SESSIONS: Record<SupportedCliCommand, (system: string, user: string) => CliSession> = {
+  claude: claudeSession,
+  codex: codexSession,
+};
 
 function exitFailureEvent(
   command: string,
@@ -64,46 +132,63 @@ export function createLocalCliAgent(config: LocalCliAgentConfig): SpecAgent {
     mode: "draft" | "refine" | "summarize",
   ): AsyncIterable<AgentEvent> {
     let text = "";
-    let resultText: string | null = null;
     let errored = false;
     try {
-      const child = spawn(config.command, CLI_ARGS[config.command](systemPrompt(request)), {
-        stdio: ["pipe", "pipe", "pipe"],
+      const session = CLI_SESSIONS[config.command](systemPrompt(request), userPrompt(request, mode));
+      const child = spawn(config.command, session.args, { stdio: ["pipe", "pipe", "pipe"] });
+      // Attach both handlers synchronously: an unhandled ChildProcess "error"
+      // (missing/broken binary) crashes the server, and "close" is not
+      // guaranteed to fire when spawn itself fails.
+      let spawnError: Error | null = null;
+      const closed = new Promise<number | null>((resolve) => {
+        child.once("close", resolve);
+        child.once("error", (error) => {
+          spawnError = error;
+          resolve(null);
+        });
       });
       const killTimer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
-      child.stdin.end(userPrompt(request, mode));
+      child.stdin.on("error", () => undefined); // EPIPE if the child dies first
+      child.stdin.end(session.stdinPayload);
 
       let stderr = "";
-      child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr = (stderr + chunk.toString()).slice(-STDERR_CAP); // bounded, keep the tail
+      });
 
       for await (const line of createInterface({ input: child.stdout })) {
-        const item = parseClaudeStreamLine(line);
-        if (item.kind === "token") {
-          text += item.text;
-          yield { type: "token", text: item.text };
-        } else if (item.kind === "result") {
-          resultText = item.text;
-        } else if (item.kind === "error") {
+        const { token, error } = session.handleLine(line);
+        if (token) {
+          text += token;
+          yield { type: "token", text: token };
+        }
+        if (error) {
           errored = true;
-          yield { type: "error", message: item.message };
+          yield { type: "error", message: error };
         }
       }
 
-      const exitCode = await new Promise<number | null>((resolve) => {
-        child.once("close", resolve);
-      });
+      const exitCode = await closed;
       clearTimeout(killTimer);
 
       if (errored) return;
+      if (spawnError !== null) {
+        const message = (spawnError as Error).message;
+        yield { type: "error", message: `failed to run ${config.command}: ${message}` };
+        return;
+      }
       const exitFailure = exitFailureEvent(config.command, exitCode, stderr);
       if (exitFailure) {
         yield exitFailure;
         return;
       }
-      yield {
-        type: "done",
-        blocks: blocksFromMarkdown(pickMarkdown(text, resultText), request.blocks),
-      };
+      const markdown = session.finalMarkdown(text);
+      if (!markdown.trim()) {
+        // Zero parseable output must not persist an empty version.
+        yield { type: "error", message: `${config.command} produced no output` };
+        return;
+      }
+      yield { type: "done", blocks: blocksFromMarkdown(markdown, request.blocks) };
     } catch (error) {
       yield { type: "error", message: error instanceof Error ? error.message : String(error) };
     }

@@ -1,8 +1,6 @@
 ---
 import { actions } from "astro:actions";
-import { count, eq, isNull, or, and } from "drizzle-orm";
 import { canComment, canEdit } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import Base from "../../../layouts/Base.astro";
 import SpecWorkspace from "../../../islands/SpecWorkspace";
 import CommentsPanel from "../../../islands/CommentsPanel";
@@ -10,7 +8,7 @@ import PresenceChips from "../../../islands/PresenceChips";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
 import { getMembership } from "../../../lib/auth";
-import { getDb } from "../../../lib/db";
+import { getDb, schema, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
 const db = getDb();

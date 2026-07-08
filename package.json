@@ -2,7 +2,7 @@
   "name": "specpasa",
   "version": "0.0.1",
   "private": true,
-  "description": "Self-hosted collaborative spec builder — Spec Driven Development, built together with AI.",
+  "description": "Self-hosted collaborative spec builder \u2014 Spec Driven Development, built together with AI.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "packageManager": "pnpm@11.8.0",
@@ -20,7 +20,8 @@
     "test": "vitest run",
     "db:generate": "pnpm --filter @specpasa/db generate",
     "db:migrate": "pnpm --filter @specpasa/db migrate",
-    "db:studio": "pnpm --filter @specpasa/db studio"
+    "db:studio": "pnpm --filter @specpasa/db studio",
+    "db:generate:pg": "pnpm --filter @specpasa/db generate:pg"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,8 +1,6 @@
 import type { APIRoute } from "astro";
-import { eq } from "drizzle-orm";
-import { schema } from "@specpasa/db";
 import { detectLocalProvidersNode } from "@specpasa/providers/node";
-import { getDb } from "../../lib/db";
+import { getDb, schema, eq } from "../../lib/db";
 
 /**
  * Host capability probe (FR-AI-5, ADR-4): what local AI backends exist on
