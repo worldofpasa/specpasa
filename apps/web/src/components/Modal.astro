@@ -1,0 +1,67 @@
+---
+import { t } from "../lib/strings";
+
+/**
+ * Native-<dialog> modal on Study tokens (#23). Open it from any element
+ * carrying `data-modal-open="<id>"`; ✕, Esc, and a backdrop click close it.
+ * Set `openOnLoad` when a failed form action should re-present the dialog.
+ */
+interface Props {
+  id: string;
+  title: string;
+  /** Panel width: md fits single-column forms, lg two-column ones. */
+  size?: "md" | "lg";
+  openOnLoad?: boolean;
+}
+
+const { id, title, size = "md", openOnLoad = false } = Astro.props;
+---
+
+<dialog
+  id={id}
+  data-open-on-load={openOnLoad ? "true" : undefined}
+  class:list={[
+    "m-auto rounded border border-line bg-sheet p-0 text-ink shadow-xl backdrop:bg-ink/30",
+    size === "lg" ? "w-[min(36rem,92vw)]" : "w-[min(28rem,92vw)]",
+  ]}
+>
+  <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+    <h2 class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+      {title}
+    </h2>
+    <button
+      type="button"
+      data-modal-close
+      aria-label={t.ui.close}
+      class="rounded px-1 text-sm text-neutral-400 hover:text-ink"
+    >
+      {t.ui.closeGlyph}
+    </button>
+  </div>
+  <div class="p-4">
+    <slot />
+  </div>
+</dialog>
+
+<script>
+  // One delegated controller for every modal on the page (Astro dedupes this
+  // script). Backdrop clicks land on the <dialog> itself because the panel's
+  // children cover its entire box (p-0).
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const opener = target.closest?.("[data-modal-open]");
+    if (opener instanceof HTMLElement) {
+      const dialog = document.getElementById(opener.dataset.modalOpen!);
+      if (dialog instanceof HTMLDialogElement) dialog.showModal();
+      return;
+    }
+    if (target.closest?.("[data-modal-close]")) {
+      target.closest("dialog")?.close();
+      return;
+    }
+    if (target instanceof HTMLDialogElement) target.close();
+  });
+  document.querySelectorAll<HTMLDialogElement>("dialog[data-open-on-load]").forEach((dialog) => {
+    dialog.showModal();
+  });
+</script>

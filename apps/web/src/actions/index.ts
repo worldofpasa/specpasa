@@ -30,6 +30,7 @@ import { getDb, insertSpecVersion, schema, and, desc, eq } from "../lib/db";
 import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
 import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
+import { deleteUpload, saveUpload, MAX_UPLOAD_BYTES, type FilePayload } from "../lib/uploads";
 
 const now = () => Date.now();
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -560,33 +561,56 @@ export const server = {
     accept: "form",
     input: z.object({
       specId: z.string(),
-      kind: z.enum(["url", "github_code", "spec"]),
+      kind: z.enum(["url", "github_code", "spec", "file"]),
       title: z.string().min(1),
-      target: z.string().min(1),
+      target: z.string().optional(),
+      file: z.instanceof(File).optional(),
     }),
     handler: async (input, context) => {
       const userId = await requireEditor(context);
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
-      if (input.kind === "spec") {
-        const [target] = await db
-          .select({ id: schema.specs.id })
-          .from(schema.specs)
-          .where(eq(schema.specs.id, input.target.trim()));
-        if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
+
+      let payload: Record<string, unknown> | null = null;
+      let url: string | null = null;
+      if (input.kind === "file") {
+        if (!input.file || input.file.size === 0) {
+          throw new ActionError({ code: "BAD_REQUEST", message: "Choose a file to upload" });
+        }
+        if (input.file.size > MAX_UPLOAD_BYTES) {
+          throw new ActionError({
+            code: "BAD_REQUEST",
+            message: `File is too large (max ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB)`,
+          });
+        }
+        payload = { ...(await saveUpload(input.file)) };
+      } else {
+        const target = input.target?.trim() ?? "";
+        if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Target is required" });
+        if (input.kind === "spec") {
+          const [targetSpec] = await db
+            .select({ id: schema.specs.id })
+            .from(schema.specs)
+            .where(eq(schema.specs.id, target));
+          if (!targetSpec)
+            throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
+          payload = { spec_id: target };
+        } else {
+          if (!/^https?:\/\//.test(target)) {
+            throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
+          }
+          url = target;
+        }
       }
-      const isLink = input.kind === "url" || input.kind === "github_code";
-      if (isLink && !/^https?:\/\//.test(input.target.trim())) {
-        throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
-      }
+
       await db.insert(schema.spec_references).values({
         id: newId(),
         spec_id: spec.id,
         kind: input.kind,
         title: input.title,
-        url: isLink ? input.target.trim() : null,
-        payload: input.kind === "spec" ? { spec_id: input.target.trim() } : null,
+        url,
+        payload,
         created_by: userId,
         created_at: now(),
       });
@@ -599,7 +623,15 @@ export const server = {
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
       await requireEditor(context);
-      await getDb().delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
+      const db = getDb();
+      const [reference] = await db
+        .select()
+        .from(schema.spec_references)
+        .where(eq(schema.spec_references.id, input.id));
+      if (reference?.kind === "file" && reference.payload) {
+        await deleteUpload(reference.payload as unknown as FilePayload);
+      }
+      await db.delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
       return { ok: true };
     },
   }),

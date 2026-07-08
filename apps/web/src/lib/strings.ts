@@ -10,6 +10,10 @@ export const APP_NAME = "specpasa";
 export const pageTitle = (...parts: string[]): string => [...parts, APP_NAME].join(" — ");
 
 export const t = {
+  ui: {
+    close: "Close",
+    closeGlyph: "✕",
+  },
   nav: {
     projects: "Projects",
     providers: "AI Providers",
@@ -155,6 +159,7 @@ export const t = {
     kindUrl: "URL",
     kindGithub: "GitHub file",
     kindSpec: "Spec",
+    kindFile: "File upload",
     kindShort: (kind: string) =>
       (({ url: "URL", github_code: "GH", spec: "SPEC", file: "FILE" }) as Record<string, string>)[
         kind
@@ -163,7 +168,13 @@ export const t = {
     urlPlaceholder: "https://…",
     githubPlaceholder: "https://github.com/owner/repo/blob/main/path/to/file.ts",
     specIdPlaceholder: "Spec ID (from the spec URL)",
+    fileLabel: "File (up to 10 MB)",
     remove: "Remove",
+    addButton: "+ Add",
+    previewTitle: "Reference preview",
+    previewUnsupported: "No inline preview for this file type — download it instead.",
+    previewLoading: "Loading preview…",
+    download: "Download",
   },
   workspace: {
     titleBlock: {

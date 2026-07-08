@@ -1,6 +1,7 @@
 import { assertNever, blocksToMarkdown } from "@specpasa/core";
 import { type AgentContextItem } from "@specpasa/providers";
 import { getDb, schema, eq } from "./db";
+import { isTextLike, readUpload, type FilePayload } from "./uploads";
 
 /** Cap per reference so a big page can't crowd out the spec itself. */
 const MAX_CONTENT_CHARS = 8_000;
@@ -69,8 +70,22 @@ async function resolveOne(reference: SpecReference): Promise<AgentContextItem> {
       if (!specId) throw new Error("spec reference missing spec_id");
       return { kind, title: reference.title, content: await specMarkdown(specId) };
     }
-    case "file":
-      throw new Error("file references are not supported yet");
+    case "file": {
+      const payload = reference.payload as unknown as FilePayload | null;
+      if (!payload?.storage_key) throw new Error("file reference missing payload");
+      if (!isTextLike(payload.mime)) {
+        return {
+          kind,
+          title: reference.title,
+          content: `[binary file attached: ${payload.file_name} (${payload.mime}, ${payload.size} bytes) — content not inlined]`,
+        };
+      }
+      return {
+        kind,
+        title: reference.title,
+        content: clamp((await readUpload(payload)).toString("utf-8")),
+      };
+    }
     default:
       return assertNever(kind, "ReferenceKind");
   }
