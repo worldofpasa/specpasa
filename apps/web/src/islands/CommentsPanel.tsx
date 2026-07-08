@@ -116,6 +116,16 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
     return () => window.removeEventListener("specpasa:comment-block", onSelect);
   }, []);
 
+  // Feed per-block open-thread counts to the document sheet so commented
+  // blocks carry the marigold flag (The Study, #17).
+  useEffect(() => {
+    const counts: Record<string, number> = {};
+    for (const thread of threads) {
+      if (!thread.resolved) counts[thread.block_id] = (counts[thread.block_id] ?? 0) + 1;
+    }
+    window.dispatchEvent(new CustomEvent("specpasa:threads", { detail: { counts } }));
+  }, [threads]);
+
   async function post() {
     if (!composerBlockId || !body.trim()) return;
     setBusy(true);
@@ -164,47 +174,57 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
     : {};
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-xs text-neutral-500" data-testid="review-summary">
-        {t.comments.summary(open, resolved)}
-      </p>
-      {canComment && composerBlockId && (
-        <div className="rounded-lg border border-amber-300 bg-white p-3 shadow-sm dark:border-amber-800 dark:bg-neutral-900">
-          <p className="text-xs font-semibold">{t.comments.composerHeading}</p>
-          {snippetFor(composerBlockId) && (
-            <p className="mt-1 border-l-2 border-amber-400 pl-2 text-xs italic text-neutral-500">
-              {snippetFor(composerBlockId)}
-            </p>
-          )}
-          <textarea
-            autoFocus
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={3}
-            placeholder={t.comments.placeholder}
-            className="mt-2 w-full rounded border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-          />
-          <div className="mt-2 flex gap-2">
-            <button
-              onClick={() => void post()}
-              disabled={busy || !body.trim()}
-              className="rounded bg-neutral-900 px-3 py-1 text-xs text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
-            >
-              {t.comments.post}
-            </button>
-            <button
-              onClick={() => setComposerBlockId(null)}
-              className="text-xs text-neutral-500 hover:underline"
-            >
-              {t.comments.cancel}
-            </button>
+    <div className="rounded border border-line bg-sheet">
+      <div className="flex items-baseline justify-between gap-2 border-b border-line px-3 py-2">
+        <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+          {t.comments.heading}
+        </h2>
+        <p
+          className={`font-mono text-[10px] ${open > 0 ? "text-review" : "text-neutral-400"}`}
+          data-testid="review-summary"
+        >
+          {t.comments.summary(open, resolved)}
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 p-3">
+        {canComment && composerBlockId && (
+          <div className="rounded border border-review bg-sheet p-3">
+            <p className="text-xs font-semibold">{t.comments.composerHeading}</p>
+            {snippetFor(composerBlockId) && (
+              <p className="mt-1 border-l-[1.5px] border-review pl-2 font-serif text-xs italic text-neutral-500">
+                {snippetFor(composerBlockId)}
+              </p>
+            )}
+            <textarea
+              autoFocus
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              placeholder={t.comments.placeholder}
+              className="mt-2 w-full rounded border border-line bg-transparent px-2 py-1.5 text-sm placeholder:text-neutral-400"
+            />
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => void post()}
+                disabled={busy || !body.trim()}
+                className="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
+              >
+                {t.comments.post}
+              </button>
+              <button
+                onClick={() => setComposerBlockId(null)}
+                className="text-xs text-neutral-500 hover:underline"
+              >
+                {t.comments.cancel}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      {canComment && !composerBlockId && threads.length === 0 && blocks.length > 0 && (
-        <p className="text-xs text-neutral-500">{t.comments.selectHint}</p>
-      )}
-      <CommentsRail threads={cards} {...handlers} />
+        )}
+        {canComment && !composerBlockId && threads.length === 0 && blocks.length > 0 && (
+          <p className="text-xs text-neutral-500">{t.comments.selectHint}</p>
+        )}
+        <CommentsRail threads={cards} {...handlers} />
+      </div>
     </div>
   );
 }

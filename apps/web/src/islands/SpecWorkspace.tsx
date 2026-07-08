@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { actions } from "astro:actions";
 import { marked } from "marked";
 import { blocksToMarkdown, fencedContent, type SpecBlock } from "@specpasa/core";
@@ -180,18 +180,39 @@ export function requestBlockComment(blockId: string) {
   window.dispatchEvent(new CustomEvent("specpasa:comment-block", { detail: { blockId } }));
 }
 
-function DocBlock({ block, commentsEnabled }: { block: SpecBlock; commentsEnabled: boolean }) {
+function DocBlock({
+  block,
+  commentsEnabled,
+  openThreads,
+}: {
+  block: SpecBlock;
+  commentsEnabled: boolean;
+  /** Open comment threads anchored to this block — marigold flag when > 0. */
+  openThreads: number;
+}) {
+  const flagged = openThreads > 0;
   return (
-    <div data-block-id={block.block_id} className="group relative scroll-mt-24">
+    <div
+      data-block-id={block.block_id}
+      className={`group relative scroll-mt-24 ${flagged ? "-mx-3 rounded bg-review-soft/70 px-3 py-1" : ""}`}
+    >
       <button
         disabled={!commentsEnabled}
         title={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
         aria-label={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
         onClick={() => commentsEnabled && requestBlockComment(block.block_id)}
-        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-neutral-300 text-xs text-neutral-400 hover:border-neutral-500 hover:text-neutral-700 group-hover:flex dark:border-neutral-700 dark:hover:text-neutral-200"
+        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-line text-xs text-neutral-400 hover:border-neutral-500 hover:text-ink group-hover:flex"
       >
         +
       </button>
+      {flagged && (
+        <span
+          title={t.lifecycle.openThreadsWarning(openThreads)}
+          className="absolute -right-2.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-review font-mono text-[10px] font-bold text-on-accent"
+        >
+          {openThreads}
+        </span>
+      )}
       {block.type === "mermaid" ? (
         <Mermaid source={fencedContent(block.markdown)} />
       ) : (
@@ -204,15 +225,28 @@ function DocBlock({ block, commentsEnabled }: { block: SpecBlock; commentsEnable
   );
 }
 
-function Sheet({ blocks, commentsEnabled }: { blocks: SpecBlock[]; commentsEnabled: boolean }) {
+function Sheet({
+  blocks,
+  commentsEnabled,
+  openCounts,
+}: {
+  blocks: SpecBlock[];
+  commentsEnabled: boolean;
+  openCounts: Record<string, number>;
+}) {
   return (
-    <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white px-12 py-10 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm">
       {blocks.length === 0 ? (
         <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
       ) : (
         <div className="flex flex-col gap-3">
           {blocks.map((block) => (
-            <DocBlock key={block.block_id} block={block} commentsEnabled={commentsEnabled} />
+            <DocBlock
+              key={block.block_id}
+              block={block}
+              commentsEnabled={commentsEnabled}
+              openThreads={openCounts[block.block_id] ?? 0}
+            />
           ))}
         </div>
       )}
@@ -399,8 +433,20 @@ export default function SpecWorkspace({
   const [leftOpen, setLeftOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
   const toc = useMemo(() => tocFromBlocks(blocks), [blocks]);
   const dirty = markdown !== initialMarkdown;
+
+  // Per-block open-thread counts arrive from CommentsPanel (the data owner)
+  // so flagged blocks stay live with SSE updates.
+  useEffect(() => {
+    const onThreads = (event: Event) => {
+      const { counts } = (event as CustomEvent<{ counts: Record<string, number> }>).detail;
+      setOpenCounts(counts);
+    };
+    window.addEventListener("specpasa:threads", onThreads);
+    return () => window.removeEventListener("specpasa:threads", onThreads);
+  }, []);
 
   async function save() {
     setSaving(true);
@@ -449,7 +495,7 @@ export default function SpecWorkspace({
         />
 
         {mode === "reading" || frozen || !canEditDoc ? (
-          <Sheet blocks={blocks} commentsEnabled={commentsEnabled} />
+          <Sheet blocks={blocks} commentsEnabled={commentsEnabled} openCounts={openCounts} />
         ) : (
           <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
             <textarea
