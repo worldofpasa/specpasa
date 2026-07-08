@@ -27,7 +27,7 @@ Dependency direction is strictly downward: web → providers/db → core.
 
 ## Conventions
 
-- IDs are app-generated ULIDs (`newId()` from `@specpasa/core`), never DB sequences; timestamps are unix-ms integers; JSON columns are text-mode — this keeps the schema portable across SQLite/Postgres/D1 (ADR-3)
+- IDs are app-generated ULIDs (`newId()` from `@specpasa/core`), never DB sequences; timestamps are unix-ms numbers; JSON/boolean columns present identical TS value shapes through Drizzle in both dialects (ADR-3). The SQLite schema is the source of truth; `schema.pg.ts` mirrors it, parity-tested in CI. App code imports `schema` and query operators from `apps/web/src/lib/db` — never from `@specpasa/db`/`drizzle-orm` directly
 - `SpecVersion` rows are immutable; iteration always appends a new version. Block IDs inside `blocks` are stable across versions — they anchor comment threads and the future CRDT layer (ADR-5)
 - Status transitions must go through `@specpasa/core` `lifecycle.ts`; frozen specs are never thawed — fork instead
 - Local CLI / Ollama code paths are Node-only; keep them out of anything that must run on the optional Cloudflare Workers target (ADR-2)

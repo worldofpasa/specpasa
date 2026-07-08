@@ -1,11 +1,9 @@
 ---
 import { actions } from "astro:actions";
-import { and, eq } from "drizzle-orm";
 import { canEdit } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import Base from "../../../layouts/Base.astro";
 import { getMembership } from "../../../lib/auth";
-import { getDb } from "../../../lib/db";
+import { and, eq, getDb, schema } from "../../../lib/db";
 import { getGitHubIntegration, getSpecContext, type GitHubIntegrationConfig } from "../../../lib/integrations";
 import { pageTitle, t } from "../../../lib/strings";
 

@@ -1,8 +1,6 @@
 ---
 import { actions } from "astro:actions";
-import { eq } from "drizzle-orm";
-import { schema } from "@specpasa/db";
-import { getDb } from "../lib/db";
+import { getDb, schema, eq } from "../lib/db";
 import { t } from "../lib/strings";
 
 interface Props {

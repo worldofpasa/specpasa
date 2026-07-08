@@ -1,12 +1,10 @@
 ---
 import { actions } from "astro:actions";
-import { desc, eq } from "drizzle-orm";
 import { canEdit } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import Base from "../../layouts/Base.astro";
 import ProjectIntegrations from "../../components/ProjectIntegrations.astro";
 import { getMembership } from "../../lib/auth";
-import { getDb } from "../../lib/db";
+import { getDb, schema, desc, eq } from "../../lib/db";
 import { pageTitle, t } from "../../lib/strings";
 
 const db = getDb();

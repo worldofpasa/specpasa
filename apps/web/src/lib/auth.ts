@@ -1,7 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { schema } from "@specpasa/db";
-import { getDb } from "./db";
+import { getDb, schema, eq } from "./db";
 
 export type SessionUser = typeof schema.users.$inferSelect;
 

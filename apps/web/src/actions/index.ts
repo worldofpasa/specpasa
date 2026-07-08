@@ -1,7 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
 import { SPECPASA_SECRET } from "astro:env/server";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
 import {
   blocksFromMarkdown,
   blocksToMarkdown,
@@ -18,13 +17,18 @@ import {
   parseEpicsFromMarkdown,
   SPEC_STATUSES,
 } from "@specpasa/core";
-import { schema } from "@specpasa/db";
-import { IntegrationError, type ExternalRecord, type TaskExportEpic } from "@specpasa/integrations";
+import {
+  IntegrationError,
+  type ExternalRecord,
+  type TaskExportEpic,
+} from "@specpasa/integrations";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
-import { getDb } from "../lib/db";
+import { specInWorkspace, threadSpecInWorkspace } from "../lib/authz";
+import { getDb, insertSpecVersion, schema, and, desc, eq } from "../lib/db";
 import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
+import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
 
 const now = () => Date.now();
@@ -345,24 +349,14 @@ export const server = {
         .orderBy(desc(schema.spec_versions.number))
         .limit(1);
       const blocks = blocksFromMarkdown(input.markdown, latest?.blocks ?? []);
-      const ts = now();
-      const versionId = newId();
-      const number = (latest?.number ?? 0) + 1;
-      await db.insert(schema.spec_versions).values({
-        id: versionId,
-        spec_id: spec.id,
-        number,
-        parent_version_id: latest?.id ?? null,
+      // Race-safe append: concurrent editors both computing latest+1 collide
+      // on the unique (spec_id, number); the helper re-reads and retries.
+      const { number } = await insertSpecVersion(db, schema, {
+        specId: spec.id,
         blocks,
         summary: input.summary || null,
-        created_by: userId,
-        ai_generated: false,
-        created_at: ts,
+        createdBy: userId,
       });
-      await db
-        .update(schema.specs)
-        .set({ current_version_id: versionId, updated_at: ts })
-        .where(eq(schema.specs.id, spec.id));
       return { number };
     },
   }),
@@ -693,9 +687,13 @@ export const server = {
     }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
-      const { role } = await getMembership(userId);
+      const { workspace, role } = await getMembership(userId);
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
+      }
+      // Object-level authz: spec must resolve into the caller's workspace.
+      if (!(await specInWorkspace(input.specId, workspace.id))) {
+        throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
       }
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
@@ -721,6 +719,7 @@ export const server = {
         created_at: ts,
         updated_at: ts,
       });
+      publishCommentsChanged(spec.id);
       return { threadId };
     },
   }),
@@ -729,12 +728,16 @@ export const server = {
     input: z.object({ threadId: z.string(), body: z.string().min(1) }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
-      const { role } = await getMembership(userId);
+      const { workspace, role } = await getMembership(userId);
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot comment" });
       }
+      const db = getDb();
+      // Object-level authz: thread must resolve into the caller's workspace.
+      const threadSpecId = await threadSpecInWorkspace(input.threadId, workspace.id);
+      if (!threadSpecId) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
       const ts = now();
-      await getDb().insert(schema.comments).values({
+      await db.insert(schema.comments).values({
         id: newId(),
         thread_id: input.threadId,
         author_id: userId,
@@ -742,6 +745,7 @@ export const server = {
         created_at: ts,
         updated_at: ts,
       });
+      publishCommentsChanged(threadSpecId);
       return { ok: true };
     },
   }),
@@ -750,11 +754,15 @@ export const server = {
     input: z.object({ threadId: z.string(), resolved: z.boolean() }),
     handler: async (input, context) => {
       const userId = await requireUser(context);
-      const { role } = await getMembership(userId);
+      const { workspace, role } = await getMembership(userId);
       if (!canComment(role)) {
         throw new ActionError({ code: "FORBIDDEN", message: "Your role cannot resolve threads" });
       }
-      await getDb()
+      const db = getDb();
+      // Object-level authz: thread must resolve into the caller's workspace.
+      const resolvedSpecId = await threadSpecInWorkspace(input.threadId, workspace.id);
+      if (!resolvedSpecId) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
+      await db
         .update(schema.comment_threads)
         .set(
           input.resolved
@@ -762,6 +770,7 @@ export const server = {
             : { resolved_at: null, resolved_by: null },
         )
         .where(eq(schema.comment_threads.id, input.threadId));
+      publishCommentsChanged(resolvedSpecId);
       return { ok: true };
     },
   }),

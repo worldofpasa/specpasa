@@ -153,9 +153,9 @@ export const t = {
     attachments: "Attachments",
     reading: "Reading",
     editing: "Edit",
-    commentStub: "Inline comments arrive with collaboration (M2)",
+    commentStub: "Commenting unavailable",
     commentsHeading: "Comments",
-    commentsEmpty: "Inline comments land with collaboration (M2).",
+    commentsEmpty: "No comments yet — hover a block and press + to start a thread.",
     commentsResolved: "Resolved",
     aiPill: "✦ Ask AI",
     aiCollapse: "Hide",
@@ -246,5 +246,9 @@ export const t = {
     restructuredNotice: (n: number) =>
       `${n === 1 ? "1 issue was" : `${n} issues were`} previously exported from the old structure. Re-exporting creates fresh issues; the old GitHub issues remain and may need manual closing.`,
     lastExported: (when: string) => `last exported ${when}`,
+  },
+  presence: {
+    viewing: (name: string) => `${name} is viewing`,
+    label: "Currently viewing",
   },
 } as const;

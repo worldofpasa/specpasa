@@ -4,8 +4,8 @@ import { detectLocalProviders } from "../detect.js";
 import { type DetectedProvider } from "../types.js";
 import { SUPPORTED_CLI_COMMANDS } from "./local-cli.js";
 
-/** CLIs we probe for on PATH (FR-AI-5). codex is reported when found even
- * though its adapter is a follow-up — the UI says which are usable. */
+/** CLIs we probe for on PATH (FR-AI-5). Any command found here but absent
+ * from SUPPORTED_CLI_COMMANDS is reported as detected-but-not-usable. */
 const KNOWN_CLIS = ["claude", "codex"] as const;
 
 export function findExecutableOnPath(

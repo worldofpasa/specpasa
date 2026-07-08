@@ -1,8 +1,8 @@
 ---
 import { actions } from "astro:actions";
 import { canAdvancePhase, canTransitionStatus, nextPhase } from "@specpasa/core";
-import type { schema } from "@specpasa/db";
 import { t } from "../lib/strings";
+import { type schema } from "../lib/db";
 
 interface Props {
   spec: typeof schema.specs.$inferSelect;

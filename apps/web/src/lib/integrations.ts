@@ -1,9 +1,7 @@
 import { SPECPASA_SECRET } from "astro:env/server";
-import { eq, and } from "drizzle-orm";
 import { decryptSecret } from "@specpasa/core";
 import { createGitHubSink, type IntegrationSink } from "@specpasa/integrations";
-import { schema } from "@specpasa/db";
-import { getDb } from "./db";
+import { and, eq, getDb, schema } from "./db";
 
 export interface GitHubIntegrationConfig {
   owner: string;
