@@ -82,6 +82,10 @@ export const t = {
     aiRevise: "Revise with AI",
     aiGenerating: "Generating…",
     aiAutoSaveNote: "Saves automatically as a new version marked AI-generated.",
+    aiIncludesComments: (n: number) =>
+      n === 1
+        ? "1 open review comment will be included"
+        : `${n} open review comments will be included`,
   },
   versions: {
     heading: "Version history",

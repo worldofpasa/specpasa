@@ -207,12 +207,15 @@ function DocBlock({
       >
         {t.workspace.blockId(index + 1)}
       </span>
+      {/* Inside the block's edge so the hover area stays contiguous (#26) —
+          at -right-9 the pointer left the block crossing the gap and the
+          button vanished before it could be clicked. */}
       <button
         disabled={!commentsEnabled}
         title={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
         aria-label={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
         onClick={() => commentsEnabled && requestBlockComment(block.block_id)}
-        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-line text-xs text-neutral-400 hover:border-neutral-500 hover:text-ink group-hover:flex"
+        className="invisible absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-sheet text-sm text-neutral-400 shadow-sm hover:border-accent hover:text-accent focus-visible:visible group-hover:visible"
       >
         +
       </button>
@@ -305,14 +308,18 @@ function RevisionStrip({
 }
 
 // ---------------------------------------------------------------------------
-// Ask-AI tray (docked next to the revision strip)
+// Ask-AI tray (centered in the dock; hover opens, click-outside/Esc closes)
 
 function FloatingAi({
   specId,
   versionNumber,
   frozen,
   providers,
-}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers">) {
+  openComments,
+}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers"> & {
+  /** Open review threads — drafting includes them, and the tray says so. */
+  openComments: number;
+}) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [providerId, setProviderId] = useState(providers[0]?.id ?? "");
@@ -320,18 +327,31 @@ function FloatingAi({
   const [streamed, setStreamed] = useState("");
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<HTMLPreElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const streamingRef = useRef(false);
+  streamingRef.current = streaming;
+
+  // Click-outside / Escape close the composer — never mid-stream (#25).
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (streamingRef.current) return;
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !streamingRef.current) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   if (frozen || providers.length === 0) return null;
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex shrink-0 items-center gap-2 rounded border border-accent bg-accent-soft px-4 py-1.5 text-sm font-semibold text-accent hover:opacity-90"
-      >
-        {t.workspace.aiPill}
-      </button>
-    );
-  }
 
   async function draftWithAi() {
     setStreaming(true);
@@ -352,7 +372,18 @@ function FloatingAi({
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-20 w-[min(44rem,92vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
+    <div ref={containerRef} className="relative flex items-stretch">
+      <button
+        onMouseEnter={() => setOpen(true)}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded border border-accent bg-accent-soft px-5 py-1.5 text-sm font-semibold text-accent shadow-sm hover:opacity-90"
+      >
+        {t.workspace.aiPill}
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-1/2 z-30 mb-2 w-[min(44rem,80vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
       {(streaming || streamed) && (
         <pre
           ref={streamRef}
@@ -399,7 +430,14 @@ function FloatingAi({
           {t.workspace.aiCollapse}
         </button>
       </div>
+      {openComments > 0 && (
+        <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
+          {t.editor.aiIncludesComments(openComments)}
+        </p>
+      )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -560,17 +598,24 @@ export default function SpecWorkspace({
         )}
         {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
 
-        {/* Bottom dock: revision strip + Ask-AI tray (The Study, #18). */}
-        <div className="sticky bottom-4 mt-6 flex items-stretch gap-3">
-          <RevisionStrip specId={specId} versions={versions} versionNumber={versionNumber} />
-          {canEditDoc && (
-            <FloatingAi
-              specId={specId}
-              versionNumber={versionNumber}
-              frozen={frozen}
-              providers={providers}
-            />
-          )}
+        {/* Bottom dock: revision strip left, Ask-AI tray centered on the
+            content column (The Study, #18/#25). */}
+        <div className="sticky bottom-4 z-20 mt-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+          <div className="flex min-w-0 items-stretch">
+            <RevisionStrip specId={specId} versions={versions} versionNumber={versionNumber} />
+          </div>
+          <div className="flex items-stretch">
+            {canEditDoc && (
+              <FloatingAi
+                specId={specId}
+                versionNumber={versionNumber}
+                frozen={frozen}
+                providers={providers}
+                openComments={Object.values(openCounts).reduce((sum, n) => sum + n, 0)}
+              />
+            )}
+          </div>
+          <div aria-hidden="true" />
         </div>
       </section>
     </div>
