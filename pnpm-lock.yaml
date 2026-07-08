@@ -38,6 +38,15 @@ importers:
       '@astrojs/react':
         specifier: ^6.0.1
         version: 6.0.1(@types/node@26.1.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(yaml@2.9.0)
+      '@fontsource-variable/albert-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource-variable/newsreader':
+        specifier: ^5.2.10
+        version: 5.2.10
+      '@fontsource/ibm-plex-mono':
+        specifier: ^5.2.7
+        version: 5.2.7
       '@specpasa/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -972,6 +981,15 @@ packages:
   '@eslint/plugin-kit@0.7.2':
     resolution: {integrity: sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@fontsource-variable/albert-sans@5.2.8':
+    resolution: {integrity: sha512-hDtxW/K8gj8y+42BvH50UUIgpY7oriWXi+79Aam0MN+BIwk2CyN3kI/NP37e39PvC1625UFHEyBi48IcMy3DiA==}
+
+  '@fontsource-variable/newsreader@5.2.10':
+    resolution: {integrity: sha512-MdI2iRwrqWpMOU/2aV2BgfZ4dJNlj/XlYaY8Zb7t87mWqHskYW0XiUANkt1cyOCiEfW2VQ0bQ5vZgGPp6B2B4w==}
+
+  '@fontsource/ibm-plex-mono@5.2.7':
+    resolution: {integrity: sha512-MKAb8qV+CaiMQn2B0dIi1OV3565NYzp3WN5b4oT6LTkk+F0jR6j0ZN+5BKJiIhffDC3rtBULsYZE65+0018z9w==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -4313,6 +4331,12 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@fontsource-variable/albert-sans@5.2.8': {}
+
+  '@fontsource-variable/newsreader@5.2.10': {}
+
+  '@fontsource/ibm-plex-mono@5.2.7': {}
 
   '@humanfs/core@0.19.2':
     dependencies:
