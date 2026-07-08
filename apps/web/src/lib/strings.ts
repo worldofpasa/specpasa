@@ -170,6 +170,7 @@ export const t = {
     },
     outline: "Outline",
     outlineEmpty: "Headings will appear here as the document grows.",
+    blockId: (n: number) => `B·${String(n).padStart(2, "0")}`,
     collapsePanel: "Collapse panel",
     expandPanel: "Expand panel",
     attachments: "Attachments",

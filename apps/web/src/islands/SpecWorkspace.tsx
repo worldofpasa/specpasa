@@ -184,10 +184,13 @@ export function requestBlockComment(blockId: string) {
 
 function DocBlock({
   block,
+  index,
   commentsEnabled,
   openThreads,
 }: {
   block: SpecBlock;
+  /** Position on the sheet — rendered as the gutter ID (B·01, B·02 …). */
+  index: number;
   commentsEnabled: boolean;
   /** Open comment threads anchored to this block — marigold flag when > 0. */
   openThreads: number;
@@ -198,6 +201,12 @@ function DocBlock({
       data-block-id={block.block_id}
       className={`group relative scroll-mt-24 ${flagged ? "-mx-3 rounded bg-review-soft/70 px-3 py-1" : ""}`}
     >
+      <span
+        aria-hidden="true"
+        className={`absolute top-1.5 hidden w-8 select-none text-right font-mono text-[9px] text-accent/70 lg:block ${flagged ? "-left-14" : "-left-11"}`}
+      >
+        {t.workspace.blockId(index + 1)}
+      </span>
       <button
         disabled={!commentsEnabled}
         title={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
@@ -219,7 +228,7 @@ function DocBlock({
         <Mermaid source={fencedContent(block.markdown)} />
       ) : (
         <div
-          className="prose prose-neutral max-w-none dark:prose-invert"
+          className="prose prose-neutral max-w-none font-serif prose-headings:font-sans dark:prose-invert"
           dangerouslySetInnerHTML={{ __html: marked.parse(block.markdown) as string }}
         />
       )}
@@ -237,15 +246,16 @@ function Sheet({
   openCounts: Record<string, number>;
 }) {
   return (
-    <div className="mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm">
+    <div className="relative mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm lg:before:absolute lg:before:inset-y-0 lg:before:left-9 lg:before:w-px lg:before:bg-line">
       {blocks.length === 0 ? (
         <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {blocks.map((block) => (
+          {blocks.map((block, index) => (
             <DocBlock
               key={block.block_id}
               block={block}
+              index={index}
               commentsEnabled={commentsEnabled}
               openThreads={openCounts[block.block_id] ?? 0}
             />
