@@ -89,6 +89,13 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
           <a href={`/specs/${spec.id}/versions`} class="text-sm text-neutral-500 hover:underline">
             {t.specs.versionHistory}{current ? ` (v${current.number})` : ""}
           </a>
+          {
+            (spec.phase === "tasks" || spec.status === "frozen") && (
+              <a href={`/specs/${spec.id}/export`} class="text-sm text-neutral-500 hover:underline">
+                {t.export.heading}
+              </a>
+            )
+          }
         </div>
       </div>
       <div class="ml-auto flex items-center gap-3">

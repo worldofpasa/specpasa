@@ -6,3 +6,4 @@ export * from "./blocks.js";
 export * from "./diff.js";
 export * from "./crypto.js";
 export * from "./roles.js";
+export * from "./epics.js";

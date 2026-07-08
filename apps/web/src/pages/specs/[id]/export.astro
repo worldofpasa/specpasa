@@ -1,0 +1,226 @@
+---
+import { actions } from "astro:actions";
+import { canEdit } from "@specpasa/core";
+import Base from "../../../layouts/Base.astro";
+import { getMembership } from "../../../lib/auth";
+import { and, eq, getDb, schema } from "../../../lib/db";
+import { getGitHubIntegration, getSpecContext, type GitHubIntegrationConfig } from "../../../lib/integrations";
+import { pageTitle, t } from "../../../lib/strings";
+
+const db = getDb();
+const specContext = await getSpecContext(Astro.params.id!);
+if (!specContext) return new Response("Not found", { status: 404 });
+const { spec, project } = specContext;
+
+const { role } = await getMembership(Astro.locals.user!.id);
+const editor = canEdit(role);
+
+const structureResult = Astro.getActionResult(actions.structureEpics);
+if (structureResult && !structureResult.error) {
+  // Carry the replaced-ledger count through the PRG redirect so the page can
+  // tell the user that previously exported issues no longer map to epics.
+  const replaced = structureResult.data.replacedIssues;
+  return Astro.redirect(
+    `/specs/${spec.id}/export${replaced > 0 ? `?restructured=${replaced}` : ""}`,
+  );
+}
+const prgResult =
+  structureResult ??
+  Astro.getActionResult(actions.deleteEpic) ??
+  Astro.getActionResult(actions.exportDocument) ??
+  Astro.getActionResult(actions.exportTasks);
+const actionError = prgResult?.error;
+if (prgResult && !prgResult.error) return Astro.redirect(`/specs/${spec.id}/export`);
+
+const restructuredCount = Number(Astro.url.searchParams.get("restructured")) || 0;
+
+const integration = await getGitHubIntegration(project.id);
+const config = integration
+  ? (integration.config as unknown as GitHubIntegrationConfig)
+  : undefined;
+const repoLabel = config ? `${config.owner}/${config.repo}` : "";
+
+const frozen = spec.status === "frozen";
+const isTasks = spec.phase === "tasks";
+
+const epics = spec.current_version_id
+  ? await db
+      .select()
+      .from(schema.epics)
+      .where(eq(schema.epics.spec_version_id, spec.current_version_id))
+      .orderBy(schema.epics.position)
+  : [];
+const tasksByEpic = new Map<string, (typeof schema.tasks.$inferSelect)[]>();
+for (const epic of epics) {
+  tasksByEpic.set(
+    epic.id,
+    await db
+      .select()
+      .from(schema.tasks)
+      .where(eq(schema.tasks.epic_id, epic.id))
+      .orderBy(schema.tasks.position),
+  );
+}
+
+const exportRecords = integration
+  ? await db
+      .select({
+        record: schema.export_records,
+        version: schema.spec_versions,
+      })
+      .from(schema.export_records)
+      .innerJoin(
+        schema.spec_versions,
+        eq(schema.export_records.spec_version_id, schema.spec_versions.id),
+      )
+      .where(
+        and(
+          eq(schema.export_records.integration_id, integration.id),
+          eq(schema.spec_versions.spec_id, spec.id),
+        ),
+      )
+  : [];
+---
+
+<Base title={t.export.title(spec.title)}>
+  <main class="mx-auto max-w-4xl p-8">
+    <nav class="text-sm text-neutral-500">
+      <a href={`/specs/${spec.id}`} class="hover:underline">{spec.title}</a> / {t.export.crumb}
+    </nav>
+    <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold">
+      {t.export.heading}
+      <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs uppercase tracking-wide text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+        {spec.phase}
+      </span>
+      <span class="text-xs font-normal text-neutral-500">{spec.status}</span>
+    </h1>
+
+    {actionError && <p class="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{actionError.message}</p>}
+    {
+      restructuredCount > 0 && (
+        <p class="mt-4 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          {t.export.restructuredNotice(restructuredCount)}
+        </p>
+      )
+    }
+
+    {
+      !integration && (
+        <p class="mt-6 rounded-lg border border-dashed border-neutral-300 p-4 text-sm text-neutral-500 dark:border-neutral-700">
+          {t.export.needsIntegration}{" "}
+          <a href={`/projects/${project.id}`} class="underline">{project.name}</a>
+        </p>
+      )
+    }
+    {
+      integration && !frozen && (
+        <p class="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {t.export.needsFrozen}
+        </p>
+      )
+    }
+
+    {
+      integration && (
+        <section class="mt-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <h2 class="text-sm font-semibold">{t.export.docHeading}</h2>
+          <p class="mt-1 text-xs text-neutral-500">{t.export.docExplainer(repoLabel)}</p>
+          <form method="POST" action={actions.exportDocument} class="mt-3">
+            <input type="hidden" name="specId" value={spec.id} />
+            <button
+              disabled={!frozen || !editor}
+              class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+            >
+              {t.export.docButton}
+            </button>
+          </form>
+        </section>
+      )
+    }
+
+    {
+      integration && isTasks && (
+        <section class="mt-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <h2 class="text-sm font-semibold">{t.export.tasksHeading}</h2>
+          <p class="mt-1 text-xs text-neutral-500">{t.export.tasksExplainer}</p>
+
+          <form method="POST" action={actions.structureEpics} class="mt-3">
+            <input type="hidden" name="specId" value={spec.id} />
+            <button
+              disabled={!editor || !spec.current_version_id}
+              class="rounded border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            >
+              {epics.length ? t.export.restructureButton : t.export.structureButton}
+            </button>
+          </form>
+
+          <ul class="mt-4 flex flex-col gap-3">
+            {epics.map((epic) => (
+              <li class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+                <div class="flex items-center gap-3">
+                  <span class="font-medium">{epic.title}</span>
+                  <span class="text-xs text-neutral-500">
+                    {t.export.epicTaskCount((tasksByEpic.get(epic.id) ?? []).length)}
+                  </span>
+                  <form method="POST" action={actions.deleteEpic} class="ml-auto">
+                    <input type="hidden" name="epicId" value={epic.id} />
+                    <button class="text-xs text-red-600 hover:underline">{t.export.removeEpic}</button>
+                  </form>
+                </div>
+                {epic.description && <p class="mt-1 text-xs text-neutral-500">{epic.description}</p>}
+                <ul class="mt-2 flex flex-col gap-1">
+                  {(tasksByEpic.get(epic.id) ?? []).map((task) => (
+                    <li class="text-sm text-neutral-700 dark:text-neutral-300">
+                      ▢ {task.title}
+                      {task.description && <span class="text-neutral-500"> — {task.description}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+            {epics.length === 0 && <li class="text-sm text-neutral-500">{t.export.epicsEmpty}</li>}
+          </ul>
+
+          <form method="POST" action={actions.exportTasks} class="mt-4">
+            <input type="hidden" name="specId" value={spec.id} />
+            <button
+              disabled={!frozen || !editor || epics.length === 0}
+              class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+            >
+              {t.export.tasksButton}
+            </button>
+          </form>
+        </section>
+      )
+    }
+
+    <section class="mt-6">
+      <h2 class="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+        {t.export.exportedHeading}
+      </h2>
+      <p class="mt-1 text-xs text-neutral-500">{t.export.reExportNote}</p>
+      <ul class="mt-3 flex flex-col gap-2">
+        {
+          exportRecords.map(({ record, version }) => (
+            <li class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+              <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                {record.external_kind === "document" ? t.export.exportedDoc : t.export.exportedIssue}
+              </span>
+              {record.external_url ? (
+                <a href={record.external_url} class="truncate text-indigo-600 hover:underline dark:text-indigo-400">
+                  {record.external_url}
+                </a>
+              ) : (
+                <span>{record.external_id}</span>
+              )}
+              <span class="ml-auto shrink-0 text-xs text-neutral-400">
+                v{version.number} · {t.export.lastExported(new Date(record.exported_at).toLocaleString())}
+              </span>
+            </li>
+          ))
+        }
+        {exportRecords.length === 0 && <li class="text-sm text-neutral-500">{t.export.exportedEmpty}</li>}
+      </ul>
+    </section>
+  </main>
+</Base>
