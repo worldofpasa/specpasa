@@ -1,10 +1,8 @@
 ---
-import { and, eq } from "drizzle-orm";
 import { diffBlocks, fencedContent, type SpecBlock } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import Base from "../../../../layouts/Base.astro";
 import Mermaid from "../../../../islands/Mermaid";
-import { getDb } from "../../../../lib/db";
+import { getDb, schema, and, eq } from "../../../../lib/db";
 import { pageTitle, t } from "../../../../lib/strings";
 
 const db = getDb();

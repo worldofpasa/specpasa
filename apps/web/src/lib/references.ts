@@ -1,8 +1,6 @@
-import { eq } from "drizzle-orm";
 import { assertNever, blocksToMarkdown } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import { type AgentContextItem } from "@specpasa/providers";
-import { getDb } from "./db";
+import { getDb, schema, eq } from "./db";
 
 /** Cap per reference so a big page can't crowd out the spec itself. */
 const MAX_CONTENT_CHARS = 8_000;

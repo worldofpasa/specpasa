@@ -1,7 +1,6 @@
 import { ActionError, defineAction } from "astro:actions";
 import { SPECPASA_SECRET } from "astro:env/server";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
 import {
   blocksFromMarkdown,
   canAdvancePhase,
@@ -16,11 +15,10 @@ import {
   nextPhase,
   SPEC_STATUSES,
 } from "@specpasa/core";
-import { schema } from "@specpasa/db";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
-import { getDb } from "../lib/db";
+import { getDb, insertSpecVersion, schema, desc, eq } from "../lib/db";
 import { t } from "../lib/strings";
 
 const now = () => Date.now();
@@ -227,24 +225,14 @@ export const server = {
         .orderBy(desc(schema.spec_versions.number))
         .limit(1);
       const blocks = blocksFromMarkdown(input.markdown, latest?.blocks ?? []);
-      const ts = now();
-      const versionId = newId();
-      const number = (latest?.number ?? 0) + 1;
-      await db.insert(schema.spec_versions).values({
-        id: versionId,
-        spec_id: spec.id,
-        number,
-        parent_version_id: latest?.id ?? null,
+      // Race-safe append: concurrent editors both computing latest+1 collide
+      // on the unique (spec_id, number); the helper re-reads and retries.
+      const { number } = await insertSpecVersion(db, schema, {
+        specId: spec.id,
         blocks,
         summary: input.summary || null,
-        created_by: userId,
-        ai_generated: false,
-        created_at: ts,
+        createdBy: userId,
       });
-      await db
-        .update(schema.specs)
-        .set({ current_version_id: versionId, updated_at: ts })
-        .where(eq(schema.specs.id, spec.id));
       return { number };
     },
   }),
