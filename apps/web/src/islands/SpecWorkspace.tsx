@@ -16,6 +16,8 @@ interface Props {
   frozen: boolean;
   providers: ProviderOption[];
   blocks: SpecBlock[];
+  /** All revision numbers, oldest first — rendered as the revision strip. */
+  versions: number[];
   /** Editors can switch to edit mode, save, and use AI (canEdit role). */
   canEditDoc: boolean;
   /** Commenters+ get the per-block "+" affordance (canComment role). */
@@ -255,7 +257,45 @@ function Sheet({
 }
 
 // ---------------------------------------------------------------------------
-// Floating AI bar
+// Revision strip (bottom dock) — every version as a labelled cell
+
+function RevisionStrip({
+  specId,
+  versions,
+  versionNumber,
+}: Pick<Props, "specId" | "versions" | "versionNumber">) {
+  if (versions.length === 0) return null;
+  return (
+    <nav
+      aria-label={t.versions.heading}
+      className="flex min-w-0 flex-1 overflow-x-auto rounded border border-line bg-sheet"
+    >
+      {versions.map((n) => {
+        const isCurrent = n === versionNumber;
+        return (
+          <a
+            key={n}
+            href={isCurrent ? `/specs/${specId}/versions` : `/specs/${specId}/versions/${n}`}
+            className="flex flex-col border-r border-line px-3 py-1.5 last:border-r-0 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-neutral-400">
+              {t.workspace.titleBlock.rev}
+            </span>
+            <span
+              className={`font-mono text-xs font-semibold ${isCurrent ? "text-accent" : "text-neutral-500"}`}
+            >
+              {t.versions.versionBase(n)}
+              {isCurrent ? " ●" : ""}
+            </span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ask-AI tray (docked next to the revision strip)
 
 function FloatingAi({
   specId,
@@ -276,7 +316,7 @@ function FloatingAi({
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-indigo-500"
+        className="flex shrink-0 items-center gap-2 rounded border border-accent bg-accent-soft px-4 py-1.5 text-sm font-semibold text-accent hover:opacity-90"
       >
         {t.workspace.aiPill}
       </button>
@@ -302,11 +342,11 @@ function FloatingAi({
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-20 w-[min(44rem,92vw)] -translate-x-1/2 rounded-xl border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+    <div className="fixed bottom-6 left-1/2 z-20 w-[min(44rem,92vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
       {(streaming || streamed) && (
         <pre
           ref={streamRef}
-          className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 text-xs dark:bg-neutral-950"
+          className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 font-mono text-xs dark:bg-neutral-950"
         >
           {streamed || "…"}
         </pre>
@@ -316,13 +356,13 @@ function FloatingAi({
         onChange={(e) => setPrompt(e.target.value)}
         rows={2}
         placeholder={versionNumber === 0 ? t.editor.aiPromptDraft : t.editor.aiPromptRevise}
-        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+        className="w-full rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
       />
       <div className="mt-2 flex items-center gap-2">
         <select
           value={providerId}
           onChange={(e) => setProviderId(e.target.value)}
-          className="rounded border border-neutral-300 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+          className="rounded border border-line bg-transparent px-2 py-1.5 text-xs"
         >
           {providers.map((provider) => (
             <option key={provider.id} value={provider.id}>
@@ -333,7 +373,7 @@ function FloatingAi({
         <button
           onClick={draftWithAi}
           disabled={streaming || !prompt.trim()}
-          className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-500 disabled:opacity-40"
+          className="rounded bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
         >
           {streaming
             ? t.editor.aiGenerating
@@ -421,6 +461,7 @@ export default function SpecWorkspace({
   frozen,
   providers,
   blocks,
+  versions,
   canEditDoc,
   commentsEnabled,
   attachments,
@@ -482,7 +523,7 @@ export default function SpecWorkspace({
         )}
       </aside>
 
-      <section className="min-w-0 flex-1 pb-28">
+      <section className="min-w-0 flex-1 pb-8">
         <WorkspaceToolbar
           versionNumber={versionNumber}
           dirty={dirty}
@@ -509,14 +550,18 @@ export default function SpecWorkspace({
         )}
         {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
 
-        {canEditDoc && (
-          <FloatingAi
-            specId={specId}
-            versionNumber={versionNumber}
-            frozen={frozen}
-            providers={providers}
-          />
-        )}
+        {/* Bottom dock: revision strip + Ask-AI tray (The Study, #18). */}
+        <div className="sticky bottom-4 mt-6 flex items-stretch gap-3">
+          <RevisionStrip specId={specId} versions={versions} versionNumber={versionNumber} />
+          {canEditDoc && (
+            <FloatingAi
+              specId={specId}
+              versionNumber={versionNumber}
+              frozen={frozen}
+              providers={providers}
+            />
+          )}
+        </div>
       </section>
     </div>
   );
