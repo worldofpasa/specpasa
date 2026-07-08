@@ -35,6 +35,45 @@ import { deleteUpload, saveUpload, MAX_UPLOAD_BYTES, type FilePayload } from "..
 const now = () => Date.now();
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Validate a reference's target by kind: upload files, resolve spec ids,
+ * require http(s) for links (FR-REF, #24). */
+async function storeReferenceFile(file: File | undefined): Promise<Record<string, unknown>> {
+  if (!file || file.size === 0) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "Choose a file to upload" });
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new ActionError({
+      code: "BAD_REQUEST",
+      message: `File is too large (max ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB)`,
+    });
+  }
+  return { ...(await saveUpload(file)) };
+}
+
+async function resolveReferenceTarget(input: {
+  kind: "url" | "github_code" | "spec" | "file";
+  target?: string;
+  file?: File;
+}): Promise<{ url: string | null; payload: Record<string, unknown> | null }> {
+  if (input.kind === "file") {
+    return { url: null, payload: await storeReferenceFile(input.file) };
+  }
+  const target = input.target?.trim() ?? "";
+  if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Target is required" });
+  if (input.kind === "spec") {
+    const [targetSpec] = await getDb()
+      .select({ id: schema.specs.id })
+      .from(schema.specs)
+      .where(eq(schema.specs.id, target));
+    if (!targetSpec) throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
+    return { url: null, payload: { spec_id: target } };
+  }
+  if (!/^https?:\/\//.test(target)) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
+  }
+  return { url: target, payload: null };
+}
+
 async function requireUser(context: { session?: { get(key: string): Promise<unknown> } }) {
   const userId = (await context.session?.get("userId")) as string | undefined;
   if (!userId) throw new ActionError({ code: "UNAUTHORIZED", message: "Sign in first" });
@@ -572,38 +611,7 @@ export const server = {
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
 
-      let payload: Record<string, unknown> | null = null;
-      let url: string | null = null;
-      if (input.kind === "file") {
-        if (!input.file || input.file.size === 0) {
-          throw new ActionError({ code: "BAD_REQUEST", message: "Choose a file to upload" });
-        }
-        if (input.file.size > MAX_UPLOAD_BYTES) {
-          throw new ActionError({
-            code: "BAD_REQUEST",
-            message: `File is too large (max ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB)`,
-          });
-        }
-        payload = { ...(await saveUpload(input.file)) };
-      } else {
-        const target = input.target?.trim() ?? "";
-        if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Target is required" });
-        if (input.kind === "spec") {
-          const [targetSpec] = await db
-            .select({ id: schema.specs.id })
-            .from(schema.specs)
-            .where(eq(schema.specs.id, target));
-          if (!targetSpec)
-            throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
-          payload = { spec_id: target };
-        } else {
-          if (!/^https?:\/\//.test(target)) {
-            throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
-          }
-          url = target;
-        }
-      }
-
+      const { url, payload } = await resolveReferenceTarget(input);
       await db.insert(schema.spec_references).values({
         id: newId(),
         spec_id: spec.id,

@@ -5,11 +5,11 @@ import {
   ProviderConfigError,
   ProviderNotImplementedError,
   ProviderRequiresNodeError,
+  type AgentContextItem,
   type AgentRequest,
   type SpecAgent,
 } from "@specpasa/providers";
 import { createSpecAgentNode } from "@specpasa/providers/node";
-import type { AgentContextItem } from "@specpasa/providers";
 import { getMembership } from "../../../lib/auth";
 import { getDb, schema, and, asc, desc, eq, isNull, insertSpecVersion } from "../../../lib/db";
 import { resolveReferences } from "../../../lib/references";

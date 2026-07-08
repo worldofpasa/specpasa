@@ -1,6 +1,7 @@
 ---
 import { actions } from "astro:actions";
 import Base from "../layouts/Base.astro";
+import Modal from "../components/Modal.astro";
 import { getWorkspace } from "../lib/auth";
 import { getDb, schema, desc, eq } from "../lib/db";
 import { pageTitle, t } from "../lib/strings";
@@ -18,36 +19,66 @@ if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`
 ---
 
 <Base title={pageTitle(workspace.name)}>
-  <main class="mx-auto max-w-4xl p-8">
-    <h1 class="text-2xl font-bold">{workspace.name}</h1>
-    <p class="mt-1 text-sm text-neutral-500">{t.projects.listLabel}</p>
+  <main class="mx-auto max-w-4xl bg-drafting-grid px-6 py-10">
+    <header class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
+          {t.nav.projects}
+        </p>
+        <h1 class="mt-1 text-2xl font-bold tracking-tight">{workspace.name}</h1>
+      </div>
+      <button
+        data-modal-open="new-project-modal"
+        class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90"
+      >
+        {t.projects.create}
+      </button>
+    </header>
 
-    <ul class="mt-6 flex flex-col gap-2">
-      {
-        projects.map((project) => (
-          <li>
-            <a
-              href={`/projects/${project.id}`}
-              class="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
-            >
-              <span class="font-medium">{project.name}</span>
-              {project.description && (
-                <span class="ml-2 text-sm text-neutral-500">{project.description}</span>
-              )}
-            </a>
-          </li>
-        ))
-      }
-      {projects.length === 0 && <li class="text-sm text-neutral-500">{t.projects.empty}</li>}
-    </ul>
+    <section class="mt-6 rounded border border-line bg-sheet">
+      <h2
+        class="border-b border-line px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+      >
+        {t.projects.listLabel}
+      </h2>
+      <ul class="divide-y divide-line">
+        {
+          projects.map((project) => (
+            <li>
+              <a
+                href={`/projects/${project.id}`}
+                class="flex items-baseline gap-3 px-4 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                <span class="font-medium">{project.name}</span>
+                {project.description && (
+                  <span class="min-w-0 truncate text-sm text-neutral-500">{project.description}</span>
+                )}
+                <span class="ml-auto font-mono text-xs text-neutral-400">→</span>
+              </a>
+            </li>
+          ))
+        }
+        {projects.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.projects.empty}</li>}
+      </ul>
+    </section>
+  </main>
 
-    <form method="POST" action={actions.createProject} class="mt-8 flex max-w-lg flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
-      <h2 class="text-sm font-semibold">{t.projects.newHeading}</h2>
-      <input name="name" required placeholder={t.projects.namePlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-      <input name="description" placeholder={t.projects.descriptionPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
+  <Modal id="new-project-modal" title={t.projects.newHeading}>
+    <form method="POST" action={actions.createProject} class="flex flex-col gap-3">
+      <input
+        name="name"
+        required
+        placeholder={t.projects.namePlaceholder}
+        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+      />
+      <input
+        name="description"
+        placeholder={t.projects.descriptionPlaceholder}
+        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+      />
       <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">
         {t.projects.create}
       </button>
     </form>
-  </main>
+  </Modal>
 </Base>

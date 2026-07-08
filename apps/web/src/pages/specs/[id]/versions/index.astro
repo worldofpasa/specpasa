@@ -27,45 +27,58 @@ const versions = await db
 ---
 
 <Base title={t.versions.titleFor(spec.title)}>
-  <main class="mx-auto max-w-4xl p-8">
-    <nav class="text-sm text-neutral-500">
-      <a href={`/specs/${spec.id}`} class="hover:underline">{spec.title}</a> / {t.versions.crumb}
-    </nav>
-    <h1 class="mt-1 text-2xl font-bold">{t.versions.heading}</h1>
+  <main class="mx-auto max-w-4xl bg-drafting-grid px-6 py-10">
+    <header>
+      <nav class="font-mono text-xs text-neutral-500">
+        <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> / {t.versions.crumb}
+      </nav>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight">{t.versions.heading}</h1>
+    </header>
 
-    <ul class="mt-6 flex flex-col gap-2">
-      {
-        versions.map((version) => (
-          <li class="flex items-center gap-2">
-            <a
-              href={`/specs/${spec.id}/versions/${version.number}`}
-              class="flex flex-1 items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-900"
-            >
-              <span class="font-mono font-semibold">v{version.number}</span>
-              <span class="text-neutral-500">{version.author}</span>
-              {version.ai_generated && (
-                <span class="rounded bg-accent-soft px-2 py-0.5 text-xs text-accent">
-                  {t.versions.aiBadge}
-                </span>
-              )}
-              {version.summary && <span class="text-neutral-500">{version.summary}</span>}
-              <span class="ml-auto text-xs text-neutral-400">
-                {new Date(version.created_at).toLocaleString()}
-              </span>
-            </a>
-            <form method="POST" action={actions.forkSpec}>
-              <input type="hidden" name="versionId" value={version.id} />
-              <button
-                class="rounded border border-neutral-300 px-3 py-1 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                title={t.lifecycle.fork}
+    <section class="mt-6 rounded border border-line bg-sheet">
+      <h2
+        class="border-b border-line px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+      >
+        {t.versions.heading}
+      </h2>
+      <ul class="divide-y divide-line">
+        {
+          versions.map((version) => (
+            <li class="flex items-center gap-3 px-4 py-3 text-sm">
+              <a
+                href={`/specs/${spec.id}/versions/${version.number}`}
+                class="flex min-w-0 flex-1 items-center gap-3 hover:text-accent"
               >
-                {t.lifecycle.fork}
-              </button>
-            </form>
-          </li>
-        ))
-      }
-      {versions.length === 0 && <li class="text-sm text-neutral-500">{t.versions.empty}</li>}
-    </ul>
+                <span class="rounded-sm border border-line px-1.5 py-0.5 font-mono text-xs font-semibold">
+                  v{version.number}
+                </span>
+                <span class="shrink-0 text-neutral-500">{version.author}</span>
+                {version.ai_generated && (
+                  <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
+                    {t.versions.aiBadge}
+                  </span>
+                )}
+                {version.summary && (
+                  <span class="min-w-0 truncate text-neutral-500">{version.summary}</span>
+                )}
+                <span class="ml-auto shrink-0 font-mono text-[10px] text-neutral-400">
+                  {new Date(version.created_at).toLocaleString()}
+                </span>
+              </a>
+              <form method="POST" action={actions.forkSpec}>
+                <input type="hidden" name="versionId" value={version.id} />
+                <button
+                  class="rounded border border-line px-3 py-1 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  title={t.lifecycle.fork}
+                >
+                  {t.lifecycle.fork}
+                </button>
+              </form>
+            </li>
+          ))
+        }
+        {versions.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.versions.empty}</li>}
+      </ul>
+    </section>
   </main>
 </Base>

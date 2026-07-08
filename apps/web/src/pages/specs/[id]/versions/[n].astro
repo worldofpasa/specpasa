@@ -32,24 +32,26 @@ const diffBase = version.parent_version_id
 ---
 
 <Base title={pageTitle(t.versions.versionBase(version.number), spec.title)}>
-  <main class="mx-auto max-w-4xl p-8">
-    <nav class="text-sm text-neutral-500">
-      <a href={`/specs/${spec.id}`} class="hover:underline">{spec.title}</a> /
-      <a href={`/specs/${spec.id}/versions`} class="hover:underline">{t.versions.crumb}</a> / v{version.number}
-    </nav>
-    <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold">
-      {t.editor.version(version.number)}
-      {
-        version.ai_generated && (
-          <span class="rounded bg-accent-soft px-2 py-0.5 text-xs font-normal text-accent">
-            {t.versions.aiBadge}
-          </span>
-        )
-      }
-    </h1>
-    <p class="mt-1 text-sm text-neutral-500">
-      {t.versions.diffSummary(diffBase, diff.added.length, diff.removed.length, diff.unchanged.length)}
-    </p>
+  <main class="mx-auto max-w-4xl bg-drafting-grid px-6 py-10">
+    <header>
+      <nav class="font-mono text-xs text-neutral-500">
+        <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> /
+        <a href={`/specs/${spec.id}/versions`} class="hover:text-accent">{t.versions.crumb}</a> / v{version.number}
+      </nav>
+      <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold tracking-tight">
+        {t.editor.version(version.number)}
+        {
+          version.ai_generated && (
+            <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
+              {t.versions.aiBadge}
+            </span>
+          )
+        }
+      </h1>
+      <p class="mt-1 text-sm text-neutral-500">
+        {t.versions.diffSummary(diffBase, diff.added.length, diff.removed.length, diff.unchanged.length)}
+      </p>
+    </header>
 
     <div class="mt-6 flex flex-col gap-2 text-sm">
       {
@@ -60,10 +62,10 @@ const diffBase = version.parent_version_id
           }
           return (
             <pre
-              class={`whitespace-pre-wrap rounded-md border px-4 py-2 font-mono text-xs ${
+              class={`whitespace-pre-wrap rounded border px-4 py-2 font-mono text-xs ${
                 added
                   ? "border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/40"
-                  : "border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+                  : "border-line bg-sheet"
               }`}
             >{block.markdown}</pre>
           );
@@ -71,7 +73,7 @@ const diffBase = version.parent_version_id
       }
       {
         diff.removed.map((block) => (
-          <pre class="whitespace-pre-wrap rounded-md border border-red-300 bg-red-50 px-4 py-2 font-mono text-xs line-through opacity-70 dark:border-red-900 dark:bg-red-950/40">{block.markdown}</pre>
+          <pre class="whitespace-pre-wrap rounded border border-red-300 bg-red-50 px-4 py-2 font-mono text-xs line-through opacity-70 dark:border-red-900 dark:bg-red-950/40">{block.markdown}</pre>
         ))
       }
     </div>
