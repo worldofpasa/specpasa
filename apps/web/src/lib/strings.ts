@@ -134,6 +134,10 @@ export const t = {
     fork: "Fork",
     forkTitle: (title: string) => `${title} (fork)`,
     statusLabel: "Status",
+    statusName: (status: string) =>
+      (({ draft: "Draft", in_review: "In review", frozen: "Frozen" }) as Record<string, string>)[
+        status
+      ] ?? status,
     openThreadsWarning: (n: number) =>
       n === 1 ? "1 comment thread is still open." : `${n} comment threads are still open.`,
     freezeConfirmLabel: "Freeze anyway",
@@ -154,6 +158,12 @@ export const t = {
     remove: "Remove",
   },
   workspace: {
+    titleBlock: {
+      spec: "Spec",
+      project: "Project",
+      phase: "Phase",
+      rev: "Rev",
+    },
     outline: "Outline",
     outlineEmpty: "Headings will appear here as the document grows.",
     collapsePanel: "Collapse panel",
