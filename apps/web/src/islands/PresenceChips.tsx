@@ -1,40 +1,27 @@
 import { useEffect, useState } from "react";
 import { t } from "../lib/strings";
+import { initials, presenceHue } from "../lib/presence";
 
 interface Viewer {
   userId: string;
   name: string;
 }
 
-const CHIP_COLORS = [
-  "bg-indigo-600",
-  "bg-emerald-600",
-  "bg-amber-600",
-  "bg-rose-600",
-  "bg-sky-600",
-];
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]!.toUpperCase())
-    .join("");
+interface Props {
+  /** Current user's id — their avatar gets the self-ring. */
+  selfId?: string;
 }
 
-function colorFor(userId: string): string {
-  let hash = 0;
-  for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  return CHIP_COLORS[hash % CHIP_COLORS.length]!;
-}
+const MAX_VISIBLE = 4;
 
 /**
- * Live viewer avatars for the workspace header (ADR-6 presence). Fed by the
+ * Live presence crew for the title block (ADR-6 presence, The Study #16).
+ * Google-Docs-style stack: overlapping initials on palette hues, self-ring
+ * for the current user, overflow chip past MAX_VISIBLE. Fed by the
  * CommentsPanel island's SSE subscription via the `specpasa:presence`
  * CustomEvent — one stream per page, no second connection.
  */
-export default function PresenceChips() {
+export default function PresenceChips({ selfId }: Props) {
   const [viewers, setViewers] = useState<Viewer[]>([]);
 
   useEffect(() => {
@@ -48,21 +35,29 @@ export default function PresenceChips() {
 
   if (viewers.length === 0) return null;
 
+  const visible = viewers.slice(0, MAX_VISIBLE);
+  const overflow = viewers.length - visible.length;
+
   return (
-    <div
-      className="flex items-center -space-x-1.5"
-      aria-label={t.presence.label}
-      data-testid="presence-chips"
-    >
-      {viewers.map((viewer) => (
+    <div className="flex items-center" aria-label={t.presence.label} data-testid="presence-chips">
+      {visible.map((viewer, index) => (
         <span
           key={viewer.userId}
           title={t.presence.viewing(viewer.name)}
-          className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white dark:border-neutral-900 ${colorFor(viewer.userId)}`}
+          aria-label={t.presence.viewing(viewer.name)}
+          className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-sheet font-mono text-[10px] font-semibold text-on-accent ${index > 0 ? "-ml-1.5" : ""} ${presenceHue(viewer.name)} ${viewer.userId === selfId ? "ring-2 ring-accent ring-offset-1 ring-offset-sheet" : ""}`}
         >
           {initials(viewer.name)}
         </span>
       ))}
+      {overflow > 0 && (
+        <span
+          className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper font-mono text-[10px] text-neutral-500"
+          title={t.presence.label}
+        >
+          {t.presence.more(overflow)}
+        </span>
+      )}
     </div>
   );
 }

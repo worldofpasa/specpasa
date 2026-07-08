@@ -135,7 +135,7 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
               </a>
             )
           }
-          <PresenceChips client:load />
+          <PresenceChips client:load selfId={Astro.locals.user!.id} />
           {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
         </div>
       </div>

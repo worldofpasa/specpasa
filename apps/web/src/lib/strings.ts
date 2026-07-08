@@ -286,5 +286,6 @@ export const t = {
   presence: {
     viewing: (name: string) => `${name} is viewing`,
     label: "Currently viewing",
+    more: (n: number) => `+${n}`,
   },
 } as const;
