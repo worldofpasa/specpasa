@@ -17,39 +17,87 @@ const user = Astro.locals.user;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <script is:inline>
+      // Stamp the theme before first paint (no flash). Stored override wins;
+      // otherwise follow the OS, live. The toggle re-applies via this event.
+      (() => {
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const apply = () => {
+          const mode = localStorage.getItem("specpasa-theme");
+          document.documentElement.dataset.theme =
+            mode === "light" || mode === "dark" ? mode : media.matches ? "dark" : "light";
+        };
+        apply();
+        media.addEventListener("change", apply);
+        window.addEventListener("specpasa:theme", apply);
+      })();
+    </script>
   </head>
-  <body class="min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
+  <body class="min-h-screen bg-paper font-sans text-ink antialiased">
     {
       user && (
-        <header class="border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <nav class="mx-auto flex max-w-4xl items-center gap-6 px-6 py-3 text-sm">
-            <a href="/" class="font-bold tracking-tight">
+        <header class="border-b border-line bg-sheet">
+          <nav class="mx-auto flex max-w-[110rem] items-center gap-6 px-6 py-3 text-sm">
+            <a href="/" class="font-serif text-base font-semibold italic tracking-tight">
               {APP_NAME}
             </a>
-            <a href="/" class="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
+            <a href="/" class="text-neutral-500 hover:text-ink">
               {t.nav.projects}
             </a>
-            <a
-              href="/settings/members"
-              class="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-            >
+            <a href="/settings/members" class="text-neutral-500 hover:text-ink">
               {t.nav.members}
             </a>
-            <a
-              href="/settings/providers"
-              class="text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-            >
+            <a href="/settings/providers" class="text-neutral-500 hover:text-ink">
               {t.nav.providers}
             </a>
             <span class="ml-auto text-neutral-500">{user.name}</span>
+            <button
+              id="theme-toggle"
+              type="button"
+              class="rounded border border-line px-2 py-0.5 font-mono text-xs text-neutral-500 hover:text-ink"
+              data-label-system={t.nav.theme.system}
+              data-label-light={t.nav.theme.light}
+              data-label-dark={t.nav.theme.dark}
+              data-glyph-system={t.nav.theme.glyphSystem}
+              data-glyph-light={t.nav.theme.glyphLight}
+              data-glyph-dark={t.nav.theme.glyphDark}
+            />
             {/* Submit to /login so the post-logout render lands on the login page */}
             <form method="POST" action={"/login" + actions.logout}>
-              <button class="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">{t.nav.logout}</button>
+              <button class="text-neutral-500 hover:text-ink">{t.nav.logout}</button>
             </form>
           </nav>
         </header>
       )
     }
     <slot />
+    <script is:inline>
+      // Theme toggle cycles system → light → dark. Copy comes from strings.ts
+      // via data attributes — no naked literals here.
+      (() => {
+        const button = document.getElementById("theme-toggle");
+        if (!button) return;
+        const order = ["system", "light", "dark"];
+        const current = () => {
+          const stored = localStorage.getItem("specpasa-theme");
+          return stored === "light" || stored === "dark" ? stored : "system";
+        };
+        const render = () => {
+          const mode = current();
+          const cap = mode.charAt(0).toUpperCase() + mode.slice(1);
+          button.textContent = button.dataset["glyph" + cap] ?? "";
+          button.title = button.dataset["label" + cap] ?? "";
+          button.setAttribute("aria-label", button.title);
+        };
+        button.addEventListener("click", () => {
+          const next = order[(order.indexOf(current()) + 1) % order.length];
+          if (next === "system") localStorage.removeItem("specpasa-theme");
+          else localStorage.setItem("specpasa-theme", next);
+          window.dispatchEvent(new Event("specpasa:theme"));
+          render();
+        });
+        render();
+      })();
+    </script>
   </body>
 </html>

@@ -15,6 +15,14 @@ export const t = {
     providers: "AI Providers",
     members: "Members",
     logout: "Log out",
+    theme: {
+      system: "Theme: match system",
+      light: "Theme: light",
+      dark: "Theme: dark",
+      glyphSystem: "◐",
+      glyphLight: "☀",
+      glyphDark: "☾",
+    },
   },
   auth: {
     setupHeading: `Welcome to ${APP_NAME}`,
