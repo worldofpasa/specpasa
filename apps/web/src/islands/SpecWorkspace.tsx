@@ -430,19 +430,19 @@ function WorkspaceToolbar({
       <span className="font-semibold">
         {versionNumber === 0 ? t.editor.blankSpec : t.editor.version(versionNumber)}
       </span>
-      {dirty && <span className="text-xs text-amber-600">{t.editor.unsaved}</span>}
+      {dirty && <span className="text-xs text-review">{t.editor.unsaved}</span>}
       <div className="ml-auto flex items-center gap-2">
         {!frozen && canEditDoc && (
           <div className="flex overflow-hidden rounded border border-neutral-300 text-xs dark:border-neutral-700">
             <button
               onClick={() => setMode("reading")}
-              className={`px-3 py-1 ${mode === "reading" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`px-3 py-1 ${mode === "reading" ? "bg-ink text-paper" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
             >
               {t.workspace.reading}
             </button>
             <button
               onClick={() => setMode("edit")}
-              className={`px-3 py-1 ${mode === "edit" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`px-3 py-1 ${mode === "edit" ? "bg-ink text-paper" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
             >
               {t.workspace.editing}
             </button>
@@ -452,7 +452,7 @@ function WorkspaceToolbar({
           <button
             onClick={onSave}
             disabled={saving || !dirty}
-            className="rounded bg-neutral-900 px-3 py-1 text-xs text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+            className="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
           >
             {saving ? t.editor.saving : t.editor.save}
           </button>

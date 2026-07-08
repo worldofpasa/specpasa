@@ -63,7 +63,7 @@ const detected = await detectLocalProvidersNode();
         <input name="name" required placeholder={t.providers.displayNameAnthropic} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="model" required value="claude-opus-4-8" class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="apiKey" required type="password" placeholder={t.providers.apiKeyPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
+        <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">{t.providers.add}</button>
       </form>
 
       <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
@@ -72,7 +72,7 @@ const detected = await detectLocalProvidersNode();
         <input name="name" required placeholder={t.providers.displayNameOllama} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="model" required placeholder={t.providers.modelPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
         <input name="baseUrl" placeholder={t.providers.baseUrlPlaceholder} class="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
+        <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">{t.providers.add}</button>
       </form>
 
       <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3 rounded-lg border border-dashed border-neutral-300 p-4 dark:border-neutral-700">
@@ -86,7 +86,7 @@ const detected = await detectLocalProvidersNode();
             {SUPPORTED_CLI_COMMANDS.map((command) => <option value={command}>{command}</option>)}
           </select>
         </label>
-        <button class="self-start rounded bg-neutral-900 px-4 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">{t.providers.add}</button>
+        <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">{t.providers.add}</button>
       </form>
     </div>
   </main>

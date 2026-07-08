@@ -44,7 +44,7 @@ const versions = await db
               <span class="font-mono font-semibold">v{version.number}</span>
               <span class="text-neutral-500">{version.author}</span>
               {version.ai_generated && (
-                <span class="rounded bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                <span class="rounded bg-accent-soft px-2 py-0.5 text-xs text-accent">
                   {t.versions.aiBadge}
                 </span>
               )}
