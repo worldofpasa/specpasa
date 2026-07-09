@@ -2,7 +2,7 @@ import { type AiProviderKind, type SpecBlock } from "@specpasa/core";
 
 /** A reference attached to a spec, serialized for the model's context. */
 export interface AgentContextItem {
-  kind: "url" | "file" | "github_code" | "spec";
+  kind: "url" | "file" | "github_code" | "spec" | "comments";
   title: string;
   content: string;
 }

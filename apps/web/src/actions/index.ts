@@ -30,9 +30,62 @@ import { getDb, insertSpecVersion, schema, and, desc, eq } from "../lib/db";
 import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
 import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
+import {
+  deleteUpload,
+  isAllowedUpload,
+  saveUpload,
+  ALLOWED_UPLOAD_EXTENSIONS,
+  MAX_UPLOAD_BYTES,
+  type FilePayload,
+} from "../lib/uploads";
 
 const now = () => Date.now();
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Validate a reference's target by kind: upload files, resolve spec ids,
+ * require http(s) for links (FR-REF, #24). */
+async function storeReferenceFile(file: File | undefined): Promise<Record<string, unknown>> {
+  if (!file || file.size === 0) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "Choose a file to upload" });
+  }
+  if (!isAllowedUpload(file.name)) {
+    throw new ActionError({
+      code: "BAD_REQUEST",
+      message: `File type not allowed — use ${ALLOWED_UPLOAD_EXTENSIONS.join(", ")}`,
+    });
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new ActionError({
+      code: "BAD_REQUEST",
+      message: `File is too large (max ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB)`,
+    });
+  }
+  return { ...(await saveUpload(file)) };
+}
+
+async function resolveReferenceTarget(input: {
+  kind: "url" | "github_code" | "spec" | "file";
+  target?: string;
+  file?: File;
+}): Promise<{ url: string | null; payload: Record<string, unknown> | null }> {
+  if (input.kind === "file") {
+    return { url: null, payload: await storeReferenceFile(input.file) };
+  }
+  const target = input.target?.trim() ?? "";
+  if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Target is required" });
+  if (input.kind === "spec") {
+    const [targetSpec] = await getDb()
+      .select({ id: schema.specs.id })
+      .from(schema.specs)
+      .where(eq(schema.specs.id, target));
+    if (!targetSpec) throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
+    return { url: null, payload: { spec_id: target } };
+  }
+  if (!/^https?:\/\//.test(target)) {
+    throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
+  }
+  return { url: target, payload: null };
+}
 
 async function requireUser(context: { session?: { get(key: string): Promise<unknown> } }) {
   const userId = (await context.session?.get("userId")) as string | undefined;
@@ -357,7 +410,50 @@ export const server = {
         summary: input.summary || null,
         createdBy: userId,
       });
+      // The explicit snapshot supersedes the working draft buffer (#32).
+      await db
+        .update(schema.specs)
+        .set({ draft_markdown: null, draft_saved_at: null, draft_saved_by: null })
+        .where(eq(schema.specs.id, spec.id));
       return { number };
+    },
+  }),
+
+  /**
+   * Working draft buffer (#32): edit-mode autosaves land here, NOT as
+   * versions. JSON accept so the editor's pagehide sendBeacon flush works.
+   */
+  saveDraft: defineAction({
+    input: z.object({ specId: z.string(), markdown: z.string() }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const db = getDb();
+      const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
+      if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      if (spec.status === "frozen") {
+        throw new ActionError({
+          code: "FORBIDDEN",
+          message: "Frozen specs are immutable — fork instead",
+        });
+      }
+      const savedAt = now();
+      await db
+        .update(schema.specs)
+        .set({ draft_markdown: input.markdown, draft_saved_at: savedAt, draft_saved_by: userId })
+        .where(eq(schema.specs.id, spec.id));
+      return { savedAt };
+    },
+  }),
+
+  discardDraft: defineAction({
+    input: z.object({ specId: z.string() }),
+    handler: async (input, context) => {
+      await requireEditor(context);
+      await getDb()
+        .update(schema.specs)
+        .set({ draft_markdown: null, draft_saved_at: null, draft_saved_by: null })
+        .where(eq(schema.specs.id, input.specId));
+      return { ok: true };
     },
   }),
 
@@ -560,33 +656,25 @@ export const server = {
     accept: "form",
     input: z.object({
       specId: z.string(),
-      kind: z.enum(["url", "github_code", "spec"]),
+      kind: z.enum(["url", "github_code", "spec", "file"]),
       title: z.string().min(1),
-      target: z.string().min(1),
+      target: z.string().optional(),
+      file: z.instanceof(File).optional(),
     }),
     handler: async (input, context) => {
       const userId = await requireEditor(context);
       const db = getDb();
       const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
       if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
-      if (input.kind === "spec") {
-        const [target] = await db
-          .select({ id: schema.specs.id })
-          .from(schema.specs)
-          .where(eq(schema.specs.id, input.target.trim()));
-        if (!target) throw new ActionError({ code: "BAD_REQUEST", message: "Spec ID not found" });
-      }
-      const isLink = input.kind === "url" || input.kind === "github_code";
-      if (isLink && !/^https?:\/\//.test(input.target.trim())) {
-        throw new ActionError({ code: "BAD_REQUEST", message: "Enter an http(s) URL" });
-      }
+
+      const { url, payload } = await resolveReferenceTarget(input);
       await db.insert(schema.spec_references).values({
         id: newId(),
         spec_id: spec.id,
         kind: input.kind,
         title: input.title,
-        url: isLink ? input.target.trim() : null,
-        payload: input.kind === "spec" ? { spec_id: input.target.trim() } : null,
+        url,
+        payload,
         created_by: userId,
         created_at: now(),
       });
@@ -599,7 +687,15 @@ export const server = {
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
       await requireEditor(context);
-      await getDb().delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
+      const db = getDb();
+      const [reference] = await db
+        .select()
+        .from(schema.spec_references)
+        .where(eq(schema.spec_references.id, input.id));
+      if (reference?.kind === "file" && reference.payload) {
+        await deleteUpload(reference.payload as unknown as FilePayload);
+      }
+      await db.delete(schema.spec_references).where(eq(schema.spec_references.id, input.id));
       return { ok: true };
     },
   }),

@@ -83,22 +83,31 @@ const exportRecords = integration
 ---
 
 <Base title={t.export.title(spec.title)}>
-  <main class="mx-auto max-w-4xl p-8">
-    <nav class="text-sm text-neutral-500">
-      <a href={`/specs/${spec.id}`} class="hover:underline">{spec.title}</a> / {t.export.crumb}
+  <main class="mx-auto max-w-4xl px-6 py-10">
+    <nav class="font-mono text-xs text-neutral-500">
+      <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> / {t.export.crumb}
     </nav>
-    <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold">
+    <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold tracking-tight">
       {t.export.heading}
-      <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs uppercase tracking-wide text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+      <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
         {spec.phase}
       </span>
-      <span class="text-xs font-normal text-neutral-500">{spec.status}</span>
+      <span
+        class:list={[
+          "rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em]",
+          spec.status === "in_review" && "border-review text-review",
+          spec.status === "frozen" && "border-frozen text-frozen",
+          spec.status === "draft" && "border-line text-neutral-500",
+        ]}
+      >
+        {t.lifecycle.statusName(spec.status)}
+      </span>
     </h1>
 
     {actionError && <p class="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{actionError.message}</p>}
     {
       restructuredCount > 0 && (
-        <p class="mt-4 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <p class="mt-4 rounded bg-review-soft px-3 py-2 text-sm text-review">
           {t.export.restructuredNotice(restructuredCount)}
         </p>
       )
@@ -106,15 +115,15 @@ const exportRecords = integration
 
     {
       !integration && (
-        <p class="mt-6 rounded-lg border border-dashed border-neutral-300 p-4 text-sm text-neutral-500 dark:border-neutral-700">
+        <p class="mt-6 rounded border border-dashed border-line bg-sheet p-4 text-sm text-neutral-500">
           {t.export.needsIntegration}{" "}
-          <a href={`/projects/${project.id}`} class="underline">{project.name}</a>
+          <a href={`/projects/${project.id}`} class="text-accent underline">{project.name}</a>
         </p>
       )
     }
     {
       integration && !frozen && (
-        <p class="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p class="mt-6 rounded border border-review bg-review-soft p-4 text-sm text-review">
           {t.export.needsFrozen}
         </p>
       )
@@ -122,14 +131,16 @@ const exportRecords = integration
 
     {
       integration && (
-        <section class="mt-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <h2 class="text-sm font-semibold">{t.export.docHeading}</h2>
+        <section class="mt-6 rounded border border-line bg-sheet p-4">
+          <h2 class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            {t.export.docHeading}
+          </h2>
           <p class="mt-1 text-xs text-neutral-500">{t.export.docExplainer(repoLabel)}</p>
           <form method="POST" action={actions.exportDocument} class="mt-3">
             <input type="hidden" name="specId" value={spec.id} />
             <button
               disabled={!frozen || !editor}
-              class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+              class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
             >
               {t.export.docButton}
             </button>
@@ -140,15 +151,17 @@ const exportRecords = integration
 
     {
       integration && isTasks && (
-        <section class="mt-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <h2 class="text-sm font-semibold">{t.export.tasksHeading}</h2>
+        <section class="mt-6 rounded border border-line bg-sheet p-4">
+          <h2 class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            {t.export.tasksHeading}
+          </h2>
           <p class="mt-1 text-xs text-neutral-500">{t.export.tasksExplainer}</p>
 
           <form method="POST" action={actions.structureEpics} class="mt-3">
             <input type="hidden" name="specId" value={spec.id} />
             <button
               disabled={!editor || !spec.current_version_id}
-              class="rounded border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:hover:bg-neutral-800"
+              class="rounded border border-line px-4 py-2 text-sm font-semibold hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
             >
               {epics.length ? t.export.restructureButton : t.export.structureButton}
             </button>
@@ -156,7 +169,7 @@ const exportRecords = integration
 
           <ul class="mt-4 flex flex-col gap-3">
             {epics.map((epic) => (
-              <li class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+              <li class="rounded border border-line p-3">
                 <div class="flex items-center gap-3">
                   <span class="font-medium">{epic.title}</span>
                   <span class="text-xs text-neutral-500">
@@ -185,7 +198,7 @@ const exportRecords = integration
             <input type="hidden" name="specId" value={spec.id} />
             <button
               disabled={!frozen || !editor || epics.length === 0}
-              class="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+              class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
             >
               {t.export.tasksButton}
             </button>
@@ -194,32 +207,34 @@ const exportRecords = integration
       )
     }
 
-    <section class="mt-6">
-      <h2 class="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+    <section class="mt-6 rounded border border-line bg-sheet">
+      <h2
+        class="border-b border-line px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+      >
         {t.export.exportedHeading}
       </h2>
-      <p class="mt-1 text-xs text-neutral-500">{t.export.reExportNote}</p>
-      <ul class="mt-3 flex flex-col gap-2">
+      <p class="px-4 pt-3 text-xs text-neutral-500">{t.export.reExportNote}</p>
+      <ul class="divide-y divide-line pt-2">
         {
           exportRecords.map(({ record, version }) => (
-            <li class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
-              <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+            <li class="flex items-center gap-3 px-4 py-2.5 text-sm">
+              <span class="rounded-sm border border-line px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                 {record.external_kind === "document" ? t.export.exportedDoc : t.export.exportedIssue}
               </span>
               {record.external_url ? (
-                <a href={record.external_url} class="truncate text-indigo-600 hover:underline dark:text-indigo-400">
+                <a href={record.external_url} class="truncate text-accent hover:underline">
                   {record.external_url}
                 </a>
               ) : (
                 <span>{record.external_id}</span>
               )}
-              <span class="ml-auto shrink-0 text-xs text-neutral-400">
+              <span class="ml-auto shrink-0 font-mono text-[10px] text-neutral-400">
                 v{version.number} · {t.export.lastExported(new Date(record.exported_at).toLocaleString())}
               </span>
             </li>
           ))
         }
-        {exportRecords.length === 0 && <li class="text-sm text-neutral-500">{t.export.exportedEmpty}</li>}
+        {exportRecords.length === 0 && <li class="px-4 py-4 text-sm text-neutral-500">{t.export.exportedEmpty}</li>}
       </ul>
     </section>
   </main>

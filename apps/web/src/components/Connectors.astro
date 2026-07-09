@@ -1,0 +1,85 @@
+---
+import { getDb, schema, eq } from "../lib/db";
+import { t } from "../lib/strings";
+
+interface Props {
+  /** Integrations are configured per project (FR-INT). */
+  projectId: string;
+}
+
+const { projectId } = Astro.props;
+const integrations = await getDb()
+  .select()
+  .from(schema.integrations)
+  .where(eq(schema.integrations.project_id, projectId));
+
+const github = integrations.find((integration) => integration.kind === "github");
+const githubConfig = github?.config as { owner?: string; repo?: string; branch?: string } | undefined;
+
+// GitHub is the only live sink (M4). Drive / Confluence / Jira surface as
+// planned connectors so the sidebar shows where specs will flow — no backends
+// behind them yet (see design epic #11 non-goals).
+const rows = [
+  {
+    key: "github",
+    name: t.connectors.github,
+    detail: githubConfig
+      ? [githubConfig.owner, githubConfig.repo].filter(Boolean).join("/") +
+        (githubConfig.branch ? ` · ${githubConfig.branch}` : "")
+      : t.connectors.githubDetail,
+    state: github ? ("on" as const) : ("connect" as const),
+  },
+  { key: "drive", name: t.connectors.drive, detail: t.connectors.driveDetail, state: "soon" as const },
+  {
+    key: "confluence",
+    name: t.connectors.confluence,
+    detail: t.connectors.confluenceDetail,
+    state: "soon" as const,
+  },
+  { key: "jira", name: t.connectors.jira, detail: t.connectors.jiraDetail, state: "soon" as const },
+];
+---
+
+<section class="rounded border border-line bg-sheet">
+  <h2
+    class="border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+  >
+    {t.connectors.heading}
+  </h2>
+  <ul class="flex flex-col gap-0.5 p-2">
+    {
+      rows.map((row) => (
+        <li class="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
+          <span
+            class:list={[
+              "h-1.5 w-1.5 shrink-0 rounded-full",
+              row.state === "on" ? "bg-accent" : "border border-neutral-400",
+            ]}
+          />
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-medium">{row.name}</span>
+            <span class="block truncate text-[10px] text-neutral-500">{row.detail}</span>
+          </span>
+          {row.state === "on" && (
+            <span class="font-mono text-[9px] uppercase tracking-[0.08em] text-neutral-500">
+              {t.connectors.on}
+            </span>
+          )}
+          {row.state === "connect" && (
+            <a
+              href={`/projects/${projectId}`}
+              class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-accent hover:underline"
+            >
+              {t.connectors.connect}
+            </a>
+          )}
+          {row.state === "soon" && (
+            <span class="font-mono text-[9px] uppercase tracking-[0.08em] text-neutral-400">
+              {t.connectors.soon}
+            </span>
+          )}
+        </li>
+      ))
+    }
+  </ul>
+</section>

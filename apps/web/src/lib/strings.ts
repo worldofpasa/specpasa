@@ -10,11 +10,24 @@ export const APP_NAME = "specpasa";
 export const pageTitle = (...parts: string[]): string => [...parts, APP_NAME].join(" — ");
 
 export const t = {
+  ui: {
+    close: "Close",
+    closeGlyph: "✕",
+    infoGlyph: "ⓘ",
+  },
   nav: {
     projects: "Projects",
     providers: "AI Providers",
     members: "Members",
     logout: "Log out",
+    theme: {
+      system: "Theme: match system",
+      light: "Theme: light",
+      dark: "Theme: dark",
+      glyphSystem: "◐",
+      glyphLight: "☀",
+      glyphDark: "☾",
+    },
   },
   auth: {
     setupHeading: `Welcome to ${APP_NAME}`,
@@ -59,6 +72,9 @@ export const t = {
     blankSpec: "Blank spec",
     version: (n: number) => `Version ${n}`,
     unsaved: "unsaved changes",
+    draftSaved: "Draft saved",
+    draftRestored: "Restored your unsaved draft — it isn't a version yet.",
+    discardDraft: "Discard draft",
     edit: "Edit",
     preview: "Preview",
     save: "Save as new version",
@@ -74,6 +90,13 @@ export const t = {
     aiRevise: "Revise with AI",
     aiGenerating: "Generating…",
     aiAutoSaveNote: "Saves automatically as a new version marked AI-generated.",
+    aiIncludesComments: (n: number) =>
+      n === 1
+        ? "1 open review comment will be included"
+        : `${n} open review comments will be included`,
+    aiContextLabel: "Context",
+    aiRefIncluded: "Included — click to exclude",
+    aiRefExcluded: "Excluded — click to include",
   },
   versions: {
     heading: "Version history",
@@ -85,6 +108,9 @@ export const t = {
       `Block-level diff against ${base} — ${added} added, ${removed} removed, ${unchanged} unchanged.`,
     blankBase: "the blank spec",
     versionBase: (n: number) => `v${n}`,
+    backToWorkspace: "Back to workspace",
+    addedBadge: "Added",
+    removedBadge: "Removed",
   },
   providers: {
     heading: "AI Providers",
@@ -126,8 +152,14 @@ export const t = {
     fork: "Fork",
     forkTitle: (title: string) => `${title} (fork)`,
     statusLabel: "Status",
+    statusName: (status: string) =>
+      (({ draft: "Draft", in_review: "In review", frozen: "Frozen" }) as Record<string, string>)[
+        status
+      ] ?? status,
     openThreadsWarning: (n: number) =>
       n === 1 ? "1 comment thread is still open." : `${n} comment threads are still open.`,
+    /** Client-side template for the live count (SpecLifecycle inline script). */
+    openThreadsWarningTemplate: "{n} comment threads are still open.",
     freezeConfirmLabel: "Freeze anyway",
   },
   references: {
@@ -139,13 +171,30 @@ export const t = {
     kindUrl: "URL",
     kindGithub: "GitHub file",
     kindSpec: "Spec",
+    kindFile: "File upload",
+    kindShort: (kind: string) =>
+      (({ url: "URL", github_code: "GH", spec: "SPEC", file: "FILE" }) as Record<string, string>)[
+        kind
+      ] ?? kind,
     titlePlaceholder: "Title",
     urlPlaceholder: "https://…",
     githubPlaceholder: "https://github.com/owner/repo/blob/main/path/to/file.ts",
     specIdPlaceholder: "Spec ID (from the spec URL)",
+    fileLabel: "File (up to 10 MB)",
     remove: "Remove",
+    addButton: "+ Add",
+    previewTitle: "Reference preview",
+    previewUnsupported: "No inline preview for this file type — download it instead.",
+    previewLoading: "Loading preview…",
+    download: "Download",
   },
   workspace: {
+    titleBlock: {
+      spec: "Spec",
+      project: "Project",
+      phase: "Phase",
+      rev: "Rev",
+    },
     outline: "Outline",
     outlineEmpty: "Headings will appear here as the document grows.",
     collapsePanel: "Collapse panel",
@@ -200,7 +249,22 @@ export const t = {
     threadCount: (n: number) => (n === 1 ? "1 thread" : `${n} threads`),
     composerHeading: "New comment",
     cancel: "Cancel",
+    actionFailed: (detail: string) => `Couldn't update the thread — ${detail}`,
     selectHint: "Hover a block in the document and click + to start a thread.",
+  },
+  connectors: {
+    heading: "Connectors",
+    on: "On",
+    connect: "Connect",
+    soon: "Soon",
+    github: "GitHub",
+    githubDetail: "Docs & issues export",
+    drive: "Google Drive",
+    driveDetail: "Reference sync",
+    confluence: "Confluence",
+    confluenceDetail: "Spec sync",
+    jira: "Jira",
+    jiraDetail: "Task export",
   },
   integrations: {
     heading: "Integrations",
@@ -250,5 +314,6 @@ export const t = {
   presence: {
     viewing: (name: string) => `${name} is viewing`,
     label: "Currently viewing",
+    more: (n: number) => `+${n}`,
   },
 } as const;

@@ -168,6 +168,12 @@ export const specs = pgTable(
     created_by: text("created_by")
       .notNull()
       .references(() => users.id),
+    // Working draft buffer (#32): autosaved edits that are NOT yet a
+    // version. Cleared when a version is saved. Last-writer-wins until the
+    // CRDT layer lands (ADR-5).
+    draft_markdown: text("draft_markdown"),
+    draft_saved_at: bigint("draft_saved_at", { mode: "number" }),
+    draft_saved_by: text("draft_saved_by").references(() => users.id),
     frozen_at: bigint("frozen_at", { mode: "number" }),
     created_at: createdAt(),
     updated_at: updatedAt(),

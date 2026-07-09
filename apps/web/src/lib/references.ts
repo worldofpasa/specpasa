@@ -1,6 +1,7 @@
 import { assertNever, blocksToMarkdown } from "@specpasa/core";
 import { type AgentContextItem } from "@specpasa/providers";
 import { getDb, schema, eq } from "./db";
+import { isTextLike, readUpload, type FilePayload } from "./uploads";
 
 /** Cap per reference so a big page can't crowd out the spec itself. */
 const MAX_CONTENT_CHARS = 8_000;
@@ -69,8 +70,22 @@ async function resolveOne(reference: SpecReference): Promise<AgentContextItem> {
       if (!specId) throw new Error("spec reference missing spec_id");
       return { kind, title: reference.title, content: await specMarkdown(specId) };
     }
-    case "file":
-      throw new Error("file references are not supported yet");
+    case "file": {
+      const payload = reference.payload as unknown as FilePayload | null;
+      if (!payload?.storage_key) throw new Error("file reference missing payload");
+      if (!isTextLike(payload.mime)) {
+        return {
+          kind,
+          title: reference.title,
+          content: `[binary file attached: ${payload.file_name} (${payload.mime}, ${payload.size} bytes) — content not inlined]`,
+        };
+      }
+      return {
+        kind,
+        title: reference.title,
+        content: clamp((await readUpload(payload)).toString("utf-8")),
+      };
+    }
     default:
       return assertNever(kind, "ReferenceKind");
   }
@@ -81,11 +96,16 @@ async function resolveOne(reference: SpecReference): Promise<AgentContextItem> {
  * reference degrades to a note instead of blocking the draft — the model is
  * told the reference exists but couldn't be loaded.
  */
-export async function resolveReferences(specId: string): Promise<AgentContextItem[]> {
-  const references = await getDb()
+export async function resolveReferences(
+  specId: string,
+  /** When set, only these reference ids feed the context (#31 chips). */
+  onlyIds?: string[],
+): Promise<AgentContextItem[]> {
+  const rows = await getDb()
     .select()
     .from(schema.spec_references)
     .where(eq(schema.spec_references.spec_id, specId));
+  const references = onlyIds ? rows.filter((row) => onlyIds.includes(row.id)) : rows;
   return Promise.all(
     references.map(async (reference) => {
       try {

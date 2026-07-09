@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { actions } from "astro:actions";
 import { marked } from "marked";
 import { blocksToMarkdown, fencedContent, type SpecBlock } from "@specpasa/core";
@@ -10,12 +10,24 @@ interface ProviderOption {
   label: string;
 }
 
+interface ReferenceOption {
+  id: string;
+  title: string;
+  kind: string;
+}
+
 interface Props {
   specId: string;
   versionNumber: number;
   frozen: boolean;
   providers: ProviderOption[];
   blocks: SpecBlock[];
+  /** All revision numbers, oldest first — rendered as the revision strip. */
+  versions: number[];
+  /** Attached references — Ask-AI context chips (#31). */
+  referenceOptions: ReferenceOption[];
+  /** Working draft newer than the current version, if any (#32). */
+  draft?: { markdown: string; savedAt: number } | null;
   /** Editors can switch to edit mode, save, and use AI (canEdit role). */
   canEditDoc: boolean;
   /** Commenters+ get the per-block "+" affordance (canComment role). */
@@ -52,7 +64,7 @@ interface DraftCallbacks {
 }
 
 async function runDraft(
-  body: { specId: string; providerId: string; prompt: string },
+  body: { specId: string; providerId: string; prompt: string; referenceIds: string[] },
   callbacks: DraftCallbacks,
 ): Promise<void> {
   try {
@@ -106,26 +118,48 @@ function scrollToBlock(blockId: string) {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+/**
+ * Hierarchical numbering relative to the document's top heading level (#33):
+ * a doc starting at h2 numbers that h2 as "1" and an h3 under it as "1.1".
+ * Level jumps (h1 straight to h3) clamp to the next depth down.
+ */
+function outlineLabels(entries: TocEntry[], minLevel: number): Map<string, string> {
+  const counters: number[] = [];
+  const labels = new Map<string, string>();
+  for (const entry of entries) {
+    const depth = Math.min(entry.level - minLevel, counters.length);
+    counters.length = depth + 1;
+    counters[depth] = (counters[depth] ?? 0) + 1;
+    labels.set(entry.blockId, counters.join("."));
+  }
+  return labels;
+}
+
 function Outline({ entries }: { entries: TocEntry[] }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // Group h2/h3 entries under the preceding h1 so sections can fold.
+  const minLevel = useMemo(
+    () => (entries.length ? Math.min(...entries.map((entry) => entry.level)) : 1),
+    [entries],
+  );
+  const labels = useMemo(() => outlineLabels(entries, minLevel), [entries, minLevel]);
+  // Group deeper entries under the preceding top-level heading so sections fold.
   const groups = useMemo(() => {
     const result: { head: TocEntry; children: TocEntry[] }[] = [];
     for (const entry of entries) {
-      if (entry.level === 1 || result.length === 0) {
+      if (entry.level === minLevel || result.length === 0) {
         result.push({ head: entry, children: [] });
       } else {
         result[result.length - 1]!.children.push(entry);
       }
     }
     return result;
-  }, [entries]);
+  }, [entries, minLevel]);
 
   if (entries.length === 0) {
-    return <p className="px-2 text-xs text-neutral-500">{t.workspace.outlineEmpty}</p>;
+    return <p className="px-3 py-2 text-xs text-neutral-500">{t.workspace.outlineEmpty}</p>;
   }
   return (
-    <nav className="flex flex-col gap-0.5 text-sm">
+    <nav className="flex flex-col gap-0.5 p-2 text-sm">
       {groups.map((group) => (
         <div key={group.head.blockId}>
           <div className="flex items-center gap-1">
@@ -139,16 +173,19 @@ function Outline({ entries }: { entries: TocEntry[] }) {
                     return next;
                   })
                 }
-                className="w-4 text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                className="w-4 text-xs text-neutral-400 hover:text-ink"
               >
                 {collapsed.has(group.head.blockId) ? "▸" : "▾"}
               </button>
             )}
             <button
               onClick={() => scrollToBlock(group.head.blockId)}
-              className="flex-1 truncate rounded px-2 py-1 text-left font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="flex min-w-0 flex-1 items-baseline gap-2 rounded px-2 py-1 text-left font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
-              {group.head.text}
+              <span className="shrink-0 font-mono text-[10px] text-neutral-400">
+                {labels.get(group.head.blockId)}
+              </span>
+              <span className="truncate">{group.head.text}</span>
             </button>
           </div>
           {!collapsed.has(group.head.blockId) &&
@@ -156,9 +193,12 @@ function Outline({ entries }: { entries: TocEntry[] }) {
               <button
                 key={child.blockId}
                 onClick={() => scrollToBlock(child.blockId)}
-                className={`block w-full truncate rounded px-2 py-0.5 text-left text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 ${child.level === 2 ? "ml-5" : "ml-9"}`}
+                className={`flex w-full min-w-0 items-baseline gap-2 rounded px-2 py-0.5 text-left text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800 ${child.level - minLevel === 1 ? "ml-5" : "ml-9"}`}
               >
-                {child.text}
+                <span className="shrink-0 font-mono text-[10px] text-neutral-400">
+                  {labels.get(child.blockId)}
+                </span>
+                <span className="truncate">{child.text}</span>
               </button>
             ))}
         </div>
@@ -174,23 +214,47 @@ export function requestBlockComment(blockId: string) {
   window.dispatchEvent(new CustomEvent("specpasa:comment-block", { detail: { blockId } }));
 }
 
-function DocBlock({ block, commentsEnabled }: { block: SpecBlock; commentsEnabled: boolean }) {
+function DocBlock({
+  block,
+  commentsEnabled,
+  openThreads,
+}: {
+  block: SpecBlock;
+  commentsEnabled: boolean;
+  /** Open comment threads anchored to this block — marigold flag when > 0. */
+  openThreads: number;
+}) {
+  const flagged = openThreads > 0;
   return (
-    <div data-block-id={block.block_id} className="group relative scroll-mt-24">
+    <div
+      data-block-id={block.block_id}
+      className={`group relative scroll-mt-24 ${flagged ? "-mx-3 rounded bg-review-soft/70 px-3 py-1" : ""}`}
+    >
+      {/* Inside the block's edge so the hover area stays contiguous (#26) —
+          at -right-9 the pointer left the block crossing the gap and the
+          button vanished before it could be clicked. */}
       <button
         disabled={!commentsEnabled}
         title={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
         aria-label={commentsEnabled ? t.workspace.commentAdd : t.workspace.commentStub}
         onClick={() => commentsEnabled && requestBlockComment(block.block_id)}
-        className="absolute -right-9 top-1 hidden h-6 w-6 items-center justify-center rounded-full border border-neutral-300 text-xs text-neutral-400 hover:border-neutral-500 hover:text-neutral-700 group-hover:flex dark:border-neutral-700 dark:hover:text-neutral-200"
+        className="invisible absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-sheet text-sm text-neutral-400 shadow-sm hover:border-accent hover:text-accent focus-visible:visible group-hover:visible"
       >
         +
       </button>
+      {flagged && (
+        <span
+          title={t.lifecycle.openThreadsWarning(openThreads)}
+          className="absolute -right-2.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-review font-mono text-[10px] font-bold text-on-accent"
+        >
+          {openThreads}
+        </span>
+      )}
       {block.type === "mermaid" ? (
         <Mermaid source={fencedContent(block.markdown)} />
       ) : (
         <div
-          className="prose prose-neutral max-w-none dark:prose-invert"
+          className="prose prose-neutral max-w-none font-serif prose-headings:font-sans dark:prose-invert"
           dangerouslySetInnerHTML={{ __html: marked.parse(block.markdown) as string }}
         />
       )}
@@ -198,15 +262,28 @@ function DocBlock({ block, commentsEnabled }: { block: SpecBlock; commentsEnable
   );
 }
 
-function Sheet({ blocks, commentsEnabled }: { blocks: SpecBlock[]; commentsEnabled: boolean }) {
+function Sheet({
+  blocks,
+  commentsEnabled,
+  openCounts,
+}: {
+  blocks: SpecBlock[];
+  commentsEnabled: boolean;
+  openCounts: Record<string, number>;
+}) {
   return (
-    <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white px-12 py-10 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="relative mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm">
       {blocks.length === 0 ? (
         <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
       ) : (
         <div className="flex flex-col gap-3">
           {blocks.map((block) => (
-            <DocBlock key={block.block_id} block={block} commentsEnabled={commentsEnabled} />
+            <DocBlock
+              key={block.block_id}
+              block={block}
+              commentsEnabled={commentsEnabled}
+              openThreads={openCounts[block.block_id] ?? 0}
+            />
           ))}
         </div>
       )}
@@ -215,40 +292,173 @@ function Sheet({ blocks, commentsEnabled }: { blocks: SpecBlock[]; commentsEnabl
 }
 
 // ---------------------------------------------------------------------------
-// Floating AI bar
+// Revision strip (bottom dock) — every version as a labelled cell
+
+function RevisionStrip({
+  specId,
+  versions,
+  versionNumber,
+}: Pick<Props, "specId" | "versions" | "versionNumber">) {
+  if (versions.length === 0) return null;
+  return (
+    <nav
+      aria-label={t.versions.heading}
+      className="flex min-w-0 flex-1 overflow-x-auto rounded border border-line bg-sheet"
+    >
+      {versions.map((n) => {
+        const isCurrent = n === versionNumber;
+        return (
+          <a
+            key={n}
+            href={isCurrent ? `/specs/${specId}/versions` : `/specs/${specId}/versions/${n}`}
+            className="flex flex-col border-r border-line px-3 py-1.5 last:border-r-0 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-neutral-400">
+              {t.workspace.titleBlock.rev}
+            </span>
+            <span
+              className={`font-mono text-xs font-semibold ${isCurrent ? "text-accent" : "text-neutral-500"}`}
+            >
+              {t.versions.versionBase(n)}
+              {isCurrent ? " ●" : ""}
+            </span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ask-AI tray (centered in the dock; hover opens, click-outside/Esc closes)
+
+/** The tray's face (#31): a small robot head with sparkle eyes. */
+function RobotMark() {
+  const sparkle = (cx: number, cy: number) =>
+    `M ${cx} ${cy - 2.2} L ${cx + 0.7} ${cy - 0.7} L ${cx + 2.2} ${cy} L ${cx + 0.7} ${cy + 0.7} ` +
+    `L ${cx} ${cy + 2.2} L ${cx - 0.7} ${cy + 0.7} L ${cx - 2.2} ${cy} L ${cx - 0.7} ${cy - 0.7} Z`;
+  return (
+    <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 shrink-0" aria-hidden="true">
+      <line x1="12" y1="2.5" x2="12" y2="5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="12" cy="2.5" r="1" fill="currentColor" />
+      <rect
+        x="4.5"
+        y="5.5"
+        width="15"
+        height="13"
+        rx="3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path d={sparkle(9, 11)} fill="currentColor" />
+      <path d={sparkle(15, 11)} fill="currentColor" />
+      <line
+        x1="9.5"
+        y1="15.2"
+        x2="14.5"
+        y2="15.2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Toggle chips choosing which attached references feed the draft (#31). */
+function ContextChips({
+  referenceOptions,
+  excludedRefs,
+  onToggle,
+}: {
+  referenceOptions: ReferenceOption[];
+  excludedRefs: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  if (referenceOptions.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-line pt-2">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+        {t.editor.aiContextLabel}
+      </span>
+      {referenceOptions.map((reference) => {
+        const included = !excludedRefs.has(reference.id);
+        return (
+          <button
+            key={reference.id}
+            type="button"
+            aria-pressed={included}
+            title={included ? t.editor.aiRefIncluded : t.editor.aiRefExcluded}
+            onClick={() => onToggle(reference.id)}
+            className={`max-w-48 truncate rounded-full border px-2 py-0.5 text-[11px] ${
+              included
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-line text-neutral-400 line-through"
+            }`}
+          >
+            {reference.title}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function FloatingAi({
   specId,
   versionNumber,
   frozen,
   providers,
-}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers">) {
+  referenceOptions,
+  openComments,
+}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers" | "referenceOptions"> & {
+  /** Open review threads — drafting includes them, and the tray says so. */
+  openComments: number;
+}) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [providerId, setProviderId] = useState(providers[0]?.id ?? "");
+  const [excludedRefs, setExcludedRefs] = useState<Set<string>>(new Set());
   const [streaming, setStreaming] = useState(false);
   const [streamed, setStreamed] = useState("");
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<HTMLPreElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const streamingRef = useRef(false);
+  streamingRef.current = streaming;
+
+  // Click-outside / Escape close the composer — never mid-stream (#25).
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (streamingRef.current) return;
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !streamingRef.current) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   if (frozen || providers.length === 0) return null;
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-indigo-500"
-      >
-        {t.workspace.aiPill}
-      </button>
-    );
-  }
 
   async function draftWithAi() {
     setStreaming(true);
     setStreamed("");
     setError(null);
+    const referenceIds = referenceOptions
+      .filter((reference) => !excludedRefs.has(reference.id))
+      .map((reference) => reference.id);
     await runDraft(
-      { specId, providerId, prompt },
+      { specId, providerId, prompt, referenceIds },
       {
         onToken: (text) => {
           setStreamed((prev) => prev + text);
@@ -262,11 +472,23 @@ function FloatingAi({
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-20 w-[min(44rem,92vw)] -translate-x-1/2 rounded-xl border border-neutral-200 bg-white p-3 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+    <div ref={containerRef} className="relative flex items-stretch">
+      <button
+        onMouseEnter={() => setOpen(true)}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded border border-accent bg-accent-soft px-5 py-1.5 text-sm font-semibold text-accent shadow-sm hover:opacity-90"
+      >
+        <RobotMark />
+        {t.workspace.aiPill}
+      </button>
+      {open && (
+        <div className="animate-tray-pop absolute bottom-full left-1/2 z-30 mb-2 w-[min(44rem,80vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
       {(streaming || streamed) && (
         <pre
           ref={streamRef}
-          className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 text-xs dark:bg-neutral-950"
+          className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 font-mono text-xs dark:bg-neutral-950"
         >
           {streamed || "…"}
         </pre>
@@ -276,13 +498,13 @@ function FloatingAi({
         onChange={(e) => setPrompt(e.target.value)}
         rows={2}
         placeholder={versionNumber === 0 ? t.editor.aiPromptDraft : t.editor.aiPromptRevise}
-        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+        className="w-full rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
       />
       <div className="mt-2 flex items-center gap-2">
         <select
           value={providerId}
           onChange={(e) => setProviderId(e.target.value)}
-          className="rounded border border-neutral-300 px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+          className="rounded border border-line bg-transparent px-2 py-1.5 text-xs"
         >
           {providers.map((provider) => (
             <option key={provider.id} value={provider.id}>
@@ -293,7 +515,7 @@ function FloatingAi({
         <button
           onClick={draftWithAi}
           disabled={streaming || !prompt.trim()}
-          className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-500 disabled:opacity-40"
+          className="rounded bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
         >
           {streaming
             ? t.editor.aiGenerating
@@ -301,7 +523,13 @@ function FloatingAi({
               ? t.editor.aiDraft
               : t.editor.aiRevise}
         </button>
-        <span className="hidden text-xs text-neutral-500 sm:inline">{t.editor.aiAutoSaveNote}</span>
+        <span
+          title={t.editor.aiAutoSaveNote}
+          aria-label={t.editor.aiAutoSaveNote}
+          className="cursor-help text-sm text-neutral-400 hover:text-ink"
+        >
+          {t.ui.infoGlyph}
+        </span>
         <button
           onClick={() => setOpen(false)}
           className="ml-auto text-xs text-neutral-500 hover:underline"
@@ -309,7 +537,26 @@ function FloatingAi({
           {t.workspace.aiCollapse}
         </button>
       </div>
+      <ContextChips
+        referenceOptions={referenceOptions}
+        excludedRefs={excludedRefs}
+        onToggle={(id) =>
+          setExcludedRefs((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          })
+        }
+      />
+      {openComments > 0 && (
+        <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
+          {t.editor.aiIncludesComments(openComments)}
+        </p>
+      )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -321,6 +568,7 @@ interface ToolbarProps {
   canEditDoc: boolean;
   saving: boolean;
   mode: "reading" | "edit";
+  draftState: "clean" | "dirty" | "saved";
   setMode: (mode: "reading" | "edit") => void;
   onSave: () => void;
 }
@@ -332,6 +580,7 @@ function WorkspaceToolbar({
   canEditDoc,
   saving,
   mode,
+  draftState,
   setMode,
   onSave,
 }: ToolbarProps) {
@@ -340,19 +589,24 @@ function WorkspaceToolbar({
       <span className="font-semibold">
         {versionNumber === 0 ? t.editor.blankSpec : t.editor.version(versionNumber)}
       </span>
-      {dirty && <span className="text-xs text-amber-600">{t.editor.unsaved}</span>}
+      {draftState === "dirty" && <span className="text-xs text-review">{t.editor.unsaved}</span>}
+      {draftState === "saved" && dirty && (
+        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-400">
+          {t.editor.draftSaved}
+        </span>
+      )}
       <div className="ml-auto flex items-center gap-2">
         {!frozen && canEditDoc && (
           <div className="flex overflow-hidden rounded border border-neutral-300 text-xs dark:border-neutral-700">
             <button
               onClick={() => setMode("reading")}
-              className={`px-3 py-1 ${mode === "reading" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`px-3 py-1 ${mode === "reading" ? "bg-ink text-paper" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
             >
               {t.workspace.reading}
             </button>
             <button
               onClick={() => setMode("edit")}
-              className={`px-3 py-1 ${mode === "edit" ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`px-3 py-1 ${mode === "edit" ? "bg-ink text-paper" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
             >
               {t.workspace.editing}
             </button>
@@ -362,7 +616,7 @@ function WorkspaceToolbar({
           <button
             onClick={onSave}
             disabled={saving || !dirty}
-            className="rounded bg-neutral-900 px-3 py-1 text-xs text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
+            className="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
           >
             {saving ? t.editor.saving : t.editor.save}
           </button>
@@ -373,28 +627,195 @@ function WorkspaceToolbar({
 }
 
 // ---------------------------------------------------------------------------
+// Left rail + editor pane (extracted from the shell)
+
+function LeftRail({
+  leftOpen,
+  setLeftOpen,
+  toc,
+  attachments,
+}: {
+  leftOpen: boolean;
+  setLeftOpen: (updater: (value: boolean) => boolean) => void;
+  toc: TocEntry[];
+  attachments?: ReactNode;
+}) {
+  return (
+    <aside
+      className={`sticky top-6 hidden max-h-[85vh] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
+    >
+      <button
+        onClick={() => setLeftOpen((v) => !v)}
+        title={leftOpen ? t.workspace.collapsePanel : t.workspace.expandPanel}
+        className="mb-2 self-start rounded border border-line px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      >
+        {leftOpen ? "«" : "»"}
+      </button>
+      {leftOpen && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded border border-line bg-sheet">
+            <h2 className="border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+              {t.workspace.outline}
+            </h2>
+            <Outline entries={toc} />
+          </div>
+          {attachments}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function EditorPane({
+  markdown,
+  setMarkdown,
+  restoredDraft,
+  onDiscard,
+}: {
+  markdown: string;
+  setMarkdown: (value: string) => void;
+  restoredDraft: boolean;
+  onDiscard: () => void;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-3xl rounded border border-line bg-sheet shadow-sm">
+      {restoredDraft && (
+        <p className="flex items-center gap-3 border-b border-dashed border-line bg-review-soft/60 px-6 py-2 text-xs text-review">
+          {t.editor.draftRestored}
+          <button onClick={onDiscard} className="font-semibold text-accent hover:underline">
+            {t.editor.discardDraft}
+          </button>
+        </p>
+      )}
+      <textarea
+        value={markdown}
+        onChange={(e) => setMarkdown(e.target.value)}
+        rows={24}
+        placeholder={t.editor.placeholder}
+        className="w-full resize-y bg-transparent px-6 py-5 font-mono text-sm outline-none"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Working draft autosave (#32)
+
+/**
+ * Typing never mints a version: the buffer syncs after a short pause and a
+ * pagehide beacon flushes anything still in-flight. "Save as new version"
+ * remains the explicit snapshot action.
+ */
+function useDraftAutosave({
+  specId,
+  markdown,
+  active,
+  lastSyncedRef,
+  setDraftState,
+}: {
+  specId: string;
+  markdown: string;
+  active: boolean;
+  lastSyncedRef: React.MutableRefObject<string>;
+  setDraftState: (state: "clean" | "dirty" | "saved") => void;
+}) {
+  useEffect(() => {
+    if (!active || markdown === lastSyncedRef.current) return;
+    setDraftState("dirty");
+    const handle = window.setTimeout(async () => {
+      const { error } = await actions.saveDraft({ specId, markdown });
+      if (!error) {
+        lastSyncedRef.current = markdown;
+        setDraftState("saved");
+      }
+    }, 1500);
+    return () => window.clearTimeout(handle);
+  }, [active, markdown, specId, lastSyncedRef, setDraftState]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (!active || markdown === lastSyncedRef.current) return;
+      navigator.sendBeacon(
+        "/_actions/saveDraft",
+        new Blob([JSON.stringify({ specId, markdown })], { type: "application/json" }),
+      );
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [active, markdown, specId, lastSyncedRef]);
+}
+
+// ---------------------------------------------------------------------------
 // Workspace shell
 
-export default function SpecWorkspace({
-  specId,
-  versionNumber,
-  frozen,
-  providers,
-  blocks,
-  canEditDoc,
-  commentsEnabled,
-  attachments,
-}: Props) {
-  const [mode, setMode] = useState<"reading" | "edit">(
-    versionNumber === 0 && !frozen && canEditDoc ? "edit" : "reading",
-  );
+function canWrite(frozen: boolean, canEditDoc: boolean): boolean {
+  return !frozen && canEditDoc;
+}
+
+function initialMode(props: Props): "reading" | "edit" {
+  const startInEdit = props.versionNumber === 0 || Boolean(props.draft);
+  return startInEdit && canWrite(props.frozen, props.canEditDoc) ? "edit" : "reading";
+}
+
+function seededMarkdown(draft: Props["draft"], versionMarkdown: string): string {
+  return draft?.markdown ?? versionMarkdown;
+}
+
+export default function SpecWorkspace(props: Props) {
+  const {
+    specId,
+    versionNumber,
+    frozen,
+    providers,
+    blocks,
+    versions,
+    referenceOptions,
+    draft,
+    canEditDoc,
+    commentsEnabled,
+    attachments,
+  } = props;
+  const [mode, setMode] = useState<"reading" | "edit">(initialMode(props));
   const initialMarkdown = useMemo(() => blocksToMarkdown(blocks), [blocks]);
-  const [markdown, setMarkdown] = useState(initialMarkdown);
+  const [markdown, setMarkdown] = useState(seededMarkdown(draft, initialMarkdown));
   const [leftOpen, setLeftOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
+  const [draftState, setDraftState] = useState<"clean" | "dirty" | "saved">(
+    draft ? "saved" : "clean",
+  );
+  const [restoredDraft, setRestoredDraft] = useState(Boolean(draft));
+  const lastSyncedRef = useRef(seededMarkdown(draft, initialMarkdown));
   const toc = useMemo(() => tocFromBlocks(blocks), [blocks]);
   const dirty = markdown !== initialMarkdown;
+
+  useDraftAutosave({
+    specId,
+    markdown,
+    active: mode === "edit" && canWrite(frozen, canEditDoc),
+    lastSyncedRef,
+    setDraftState,
+  });
+
+  async function discardDraft() {
+    await actions.discardDraft({ specId });
+    lastSyncedRef.current = initialMarkdown;
+    setMarkdown(initialMarkdown);
+    setDraftState("clean");
+    setRestoredDraft(false);
+  }
+
+  // Per-block open-thread counts arrive from CommentsPanel (the data owner)
+  // so flagged blocks stay live with SSE updates.
+  useEffect(() => {
+    const onThreads = (event: Event) => {
+      const { counts } = (event as CustomEvent<{ counts: Record<string, number> }>).detail;
+      setOpenCounts(counts);
+    };
+    window.addEventListener("specpasa:threads", onThreads);
+    return () => window.removeEventListener("specpasa:threads", onThreads);
+  }, []);
 
   async function save() {
     setSaving(true);
@@ -405,30 +826,13 @@ export default function SpecWorkspace({
     else window.location.reload();
   }
 
+  const reading = mode === "reading" || frozen || !canEditDoc;
+
   return (
     <div className="flex gap-6">
-      <aside
-        className={`sticky top-6 hidden max-h-[85vh] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
-      >
-        <button
-          onClick={() => setLeftOpen((v) => !v)}
-          title={leftOpen ? t.workspace.collapsePanel : t.workspace.expandPanel}
-          className="mb-2 self-start rounded border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-        >
-          {leftOpen ? "«" : "»"}
-        </button>
-        {leftOpen && (
-          <>
-            <h2 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              {t.workspace.outline}
-            </h2>
-            <Outline entries={toc} />
-            <div className="mt-6">{attachments}</div>
-          </>
-        )}
-      </aside>
+      <LeftRail leftOpen={leftOpen} setLeftOpen={setLeftOpen} toc={toc} attachments={attachments} />
 
-      <section className="min-w-0 flex-1 pb-28">
+      <section className="min-w-0 flex-1 pb-8">
         <WorkspaceToolbar
           versionNumber={versionNumber}
           dirty={dirty}
@@ -436,33 +840,43 @@ export default function SpecWorkspace({
           canEditDoc={canEditDoc}
           saving={saving}
           mode={mode}
+          draftState={draftState}
           setMode={setMode}
           onSave={save}
         />
 
-        {mode === "reading" || frozen || !canEditDoc ? (
-          <Sheet blocks={blocks} commentsEnabled={commentsEnabled} />
+        {reading ? (
+          <Sheet blocks={blocks} commentsEnabled={commentsEnabled} openCounts={openCounts} />
         ) : (
-          <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <textarea
-              value={markdown}
-              onChange={(e) => setMarkdown(e.target.value)}
-              rows={24}
-              placeholder={t.editor.placeholder}
-              className="w-full resize-y bg-transparent px-6 py-5 font-mono text-sm outline-none"
-            />
-          </div>
+          <EditorPane
+            markdown={markdown}
+            setMarkdown={setMarkdown}
+            restoredDraft={restoredDraft}
+            onDiscard={() => void discardDraft()}
+          />
         )}
         {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
 
-        {canEditDoc && (
-          <FloatingAi
-            specId={specId}
-            versionNumber={versionNumber}
-            frozen={frozen}
-            providers={providers}
-          />
-        )}
+        {/* Bottom dock: revision strip left, Ask-AI tray centered on the
+            content column (The Study, #18/#25). */}
+        <div className="sticky bottom-4 z-20 mt-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+          <div className="flex min-w-0 items-stretch">
+            <RevisionStrip specId={specId} versions={versions} versionNumber={versionNumber} />
+          </div>
+          <div className="flex items-stretch">
+            {canEditDoc && (
+              <FloatingAi
+                specId={specId}
+                versionNumber={versionNumber}
+                frozen={frozen}
+                providers={providers}
+                referenceOptions={referenceOptions}
+                openComments={Object.values(openCounts).reduce((sum, n) => sum + n, 0)}
+              />
+            )}
+          </div>
+          <div aria-hidden="true" />
+        </div>
       </section>
     </div>
   );

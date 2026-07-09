@@ -5,26 +5,75 @@ import {
   ProviderConfigError,
   ProviderNotImplementedError,
   ProviderRequiresNodeError,
+  type AgentContextItem,
   type AgentRequest,
   type SpecAgent,
 } from "@specpasa/providers";
 import { createSpecAgentNode } from "@specpasa/providers/node";
 import { getMembership } from "../../../lib/auth";
-import { getDb, schema, desc, eq, insertSpecVersion } from "../../../lib/db";
+import { getDb, schema, and, asc, desc, eq, isNull, insertSpecVersion } from "../../../lib/db";
 import { resolveReferences } from "../../../lib/references";
+
+/**
+ * Open review threads become model context (#25): a revision should address
+ * the outstanding comments, not just the free-text prompt. Resolved threads
+ * are excluded — they're settled.
+ */
+async function openCommentsContext(
+  specId: string,
+  blocks: SpecBlock[],
+): Promise<AgentContextItem | null> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      threadId: schema.comments.thread_id,
+      blockId: schema.comment_threads.block_id,
+      author: schema.users.name,
+      body: schema.comments.body,
+    })
+    .from(schema.comments)
+    .innerJoin(schema.comment_threads, eq(schema.comments.thread_id, schema.comment_threads.id))
+    .innerJoin(schema.users, eq(schema.comments.author_id, schema.users.id))
+    .where(
+      and(eq(schema.comment_threads.spec_id, specId), isNull(schema.comment_threads.resolved_at)),
+    )
+    .orderBy(asc(schema.comments.created_at));
+  if (rows.length === 0) return null;
+
+  const snippetFor = (blockId: string) => {
+    const markdown = blocks.find((block) => block.block_id === blockId)?.markdown ?? "";
+    return markdown.replace(/\s+/g, " ").slice(0, 160);
+  };
+  const threads = new Map<string, { blockId: string; lines: string[] }>();
+  for (const row of rows) {
+    const thread = threads.get(row.threadId) ?? { blockId: row.blockId, lines: [] };
+    thread.lines.push(`- ${row.author}: ${row.body}`);
+    threads.set(row.threadId, thread);
+  }
+  const content = [
+    "Unresolved review comments on the current document. Address each one in the revision where relevant; keep unrelated sections verbatim.",
+    ...[...threads.values()].map(
+      (thread) => `On the block starting "${snippetFor(thread.blockId)}":\n${thread.lines.join("\n")}`,
+    ),
+  ].join("\n\n");
+  return { kind: "comments", title: "Open review comments", content };
+}
 
 interface DraftContext {
   spec: typeof schema.specs.$inferSelect;
   config: typeof schema.ai_provider_configs.$inferSelect;
   latest: typeof schema.spec_versions.$inferSelect | undefined;
   prompt: string;
+  /** Sidebar references the author kept toggled on (#31); undefined = all. */
+  referenceIds?: string[];
 }
 
 async function resolveDraftContext(request: Request): Promise<DraftContext | Response> {
-  const { specId, providerId, prompt } = (await request.json()) as {
+  const { specId, providerId, prompt, referenceIds } = (await request.json()) as {
     specId?: string;
     providerId?: string;
     prompt?: string;
+    referenceIds?: string[];
   };
   if (!specId || !providerId || !prompt?.trim()) {
     return new Response("specId, providerId, and prompt are required", { status: 400 });
@@ -44,7 +93,7 @@ async function resolveDraftContext(request: Request): Promise<DraftContext | Res
     .where(eq(schema.spec_versions.spec_id, spec.id))
     .orderBy(desc(schema.spec_versions.number))
     .limit(1);
-  return { spec, config, latest, prompt };
+  return { spec, config, latest, prompt, referenceIds };
 }
 
 async function buildAgent(config: typeof schema.ai_provider_configs.$inferSelect) {
@@ -94,19 +143,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const context = await resolveDraftContext(request);
   if (context instanceof Response) return context;
-  const { spec, config, latest, prompt } = context;
+  const { spec, config, latest, prompt, referenceIds } = context;
 
   const agent = await buildAgentOrResponse(config);
   if (agent instanceof Response) return agent;
 
   const db = getDb();
   const blocks: SpecBlock[] = latest?.blocks ?? [];
-  const referenceContext = await resolveReferences(spec.id);
+  const referenceContext = await resolveReferences(spec.id, referenceIds);
+  const commentsContext = await openCommentsContext(spec.id, blocks);
   const agentRequest: AgentRequest = {
     prompt,
     blocks,
     phase: spec.phase,
-    context: referenceContext,
+    context: commentsContext ? [...referenceContext, commentsContext] : referenceContext,
   };
   const events = blocks.length ? agent.refine(agentRequest) : agent.draft(agentRequest);
 

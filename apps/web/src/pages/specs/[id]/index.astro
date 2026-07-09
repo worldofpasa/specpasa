@@ -7,8 +7,9 @@ import CommentsPanel from "../../../islands/CommentsPanel";
 import PresenceChips from "../../../islands/PresenceChips";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
+import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
-import { getDb, schema, count, eq, isNull, or, and } from "../../../lib/db";
+import { getDb, schema, asc, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
 const db = getDb();
@@ -71,36 +72,102 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
   block_id: b.block_id,
   snippet: b.markdown.slice(0, 100),
 }));
+
+// Working draft buffer (#32): only offered when it's newer than the current
+// version — an older buffer is superseded and ignored.
+const draft =
+  canEdit(role) &&
+  spec.status !== "frozen" &&
+  spec.draft_markdown &&
+  (!current || (spec.draft_saved_at ?? 0) > current.created_at)
+    ? { markdown: spec.draft_markdown, savedAt: spec.draft_saved_at ?? 0 }
+    : null;
+
+// Attached references become Ask-AI context chips (#31).
+const referenceOptions = await db
+  .select({
+    id: schema.spec_references.id,
+    title: schema.spec_references.title,
+    kind: schema.spec_references.kind,
+  })
+  .from(schema.spec_references)
+  .where(eq(schema.spec_references.spec_id, spec.id));
+
+// Every revision, oldest first — the workspace dock renders these as the
+// revision strip (immutability made visible, The Study #18).
+const versionNumbers = (
+  await db
+    .select({ number: schema.spec_versions.number })
+    .from(schema.spec_versions)
+    .where(eq(schema.spec_versions.spec_id, spec.id))
+    .orderBy(asc(schema.spec_versions.number))
+).map((row) => row.number);
 ---
 
 <Base title={pageTitle(spec.title)}>
   <main class="mx-auto max-w-[110rem] px-6 py-6">
-    <header class="mb-6 flex flex-wrap items-center gap-3">
-      <div class="min-w-0">
-        <nav class="truncate text-sm text-neutral-500">
-          <a href="/" class="hover:underline">{t.nav.projects}</a> /
-          <a href={`/intents/${intent!.id}`} class="hover:underline">{intent!.title}</a> /
-        </nav>
-        <div class="mt-0.5 flex items-center gap-3">
-          <h1 class="truncate text-2xl font-bold">{spec.title}</h1>
-          <span class="rounded bg-neutral-100 px-2 py-0.5 text-xs uppercase tracking-wide text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-            {spec.phase}
+    {/* Title block — the spec's engineering-drawing header (The Study, #14). */}
+    <header class="mb-6 overflow-hidden rounded border border-line border-b-[1.5px] border-b-ink bg-sheet">
+      <div class="flex flex-wrap items-stretch">
+        <div class="min-w-0 flex-1 basis-56 px-4 py-2.5 sm:border-r sm:border-line">
+          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            {t.workspace.titleBlock.spec}
           </span>
-          <a href={`/specs/${spec.id}/versions`} class="text-sm text-neutral-500 hover:underline">
-            {t.specs.versionHistory}{current ? ` (v${current.number})` : ""}
+          <h1 class="truncate text-lg font-bold leading-tight">{spec.title}</h1>
+        </div>
+        <div class="hidden max-w-52 border-r border-line px-4 py-2.5 lg:block">
+          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            {t.workspace.titleBlock.project}
+          </span>
+          <a href={`/intents/${intent!.id}`} class="block truncate text-sm font-semibold hover:text-accent">
+            {intent!.title}
           </a>
+        </div>
+        <div class="hidden border-r border-line px-4 py-2.5 sm:block">
+          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            {t.workspace.titleBlock.phase}
+          </span>
+          <span class="block text-sm font-semibold uppercase tracking-wide text-accent">{spec.phase}</span>
+        </div>
+        <div class="hidden border-r border-line px-4 py-2.5 sm:block">
+          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            {t.workspace.titleBlock.rev}
+          </span>
+          <a
+            href={`/specs/${spec.id}/versions`}
+            class="block font-mono text-sm font-semibold hover:text-accent"
+            title={t.specs.versionHistory}
+          >
+            v{current?.number ?? 0}
+          </a>
+        </div>
+        <div class="ml-auto flex flex-wrap items-center gap-3 px-4 py-2">
+          <span
+            class:list={[
+              "rounded-sm border-[1.5px] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em]",
+              spec.status === "in_review" && "border-review text-review",
+              spec.status === "frozen" && "border-frozen text-frozen",
+              spec.status === "draft" && "border-line text-neutral-500",
+            ]}
+            title={spec.status === "frozen" && spec.frozen_at
+              ? t.lifecycle.frozenNote(new Date(spec.frozen_at).toLocaleString())
+              : undefined}
+          >
+            {t.lifecycle.statusName(spec.status)}
+          </span>
           {
             (spec.phase === "tasks" || spec.status === "frozen") && (
-              <a href={`/specs/${spec.id}/export`} class="text-sm text-neutral-500 hover:underline">
+              <a
+                href={`/specs/${spec.id}/export`}
+                class="font-mono text-xs text-neutral-500 hover:text-accent"
+              >
                 {t.export.heading}
               </a>
             )
           }
+          <PresenceChips client:load selfId={Astro.locals.user!.id} />
+          {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
         </div>
-      </div>
-      <div class="ml-auto flex items-center gap-3">
-        <PresenceChips client:load />
-        {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
       </div>
     </header>
 
@@ -113,16 +180,20 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
           frozen={spec.status === "frozen"}
           providers={providers}
           blocks={current?.blocks ?? []}
+          versions={versionNumbers}
+          referenceOptions={referenceOptions}
+          draft={draft}
           canEditDoc={canEdit(role)}
           commentsEnabled={canComment(role)}
         >
-          <div slot="attachments">
+          <div slot="attachments" class="flex flex-col gap-4">
             <SpecReferences specId={spec.id} />
+            <Connectors projectId={intent!.project_id} />
           </div>
         </SpecWorkspace>
       </div>
 
-      <aside class="sticky top-6 hidden w-72 shrink-0 self-start xl:block">
+      <aside class="sticky top-6 hidden w-72 shrink-0 self-start lg:block">
         <CommentsPanel
           client:load
           specId={spec.id}

@@ -1,7 +1,9 @@
 ---
 import { actions } from "astro:actions";
+import Modal from "./Modal.astro";
 import { getDb, schema, eq } from "../lib/db";
 import { t } from "../lib/strings";
+import { UPLOAD_ACCEPT, type FilePayload } from "../lib/uploads";
 
 interface Props {
   specId: string;
@@ -12,49 +14,265 @@ const references = await getDb()
   .select()
   .from(schema.spec_references)
   .where(eq(schema.spec_references.spec_id, specId));
+
+const tileStyles: Record<string, string> = {
+  url: "bg-accent-soft text-accent",
+  github_code: "bg-ink text-sheet",
+  spec: "bg-frozen-soft text-frozen",
+  file: "bg-review-soft text-review",
+};
+
+const filePayload = (reference: (typeof references)[number]) =>
+  reference.kind === "file" ? (reference.payload as unknown as FilePayload | null) : null;
 ---
 
-<section>
-  <h2 class="px-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-    {t.workspace.attachments}
+<section class="rounded border border-line bg-sheet">
+  <h2
+    class="flex items-center justify-between border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+  >
+    {t.references.heading}
+    <button
+      type="button"
+      data-modal-open="add-reference-modal"
+      class="rounded px-1.5 py-0.5 font-sans text-[11px] font-semibold normal-case tracking-normal text-accent hover:bg-accent-soft"
+    >
+      {t.references.addButton}
+    </button>
   </h2>
-  <p class="mt-1 px-2 text-xs text-neutral-500">{t.references.tagline}</p>
 
-  <ul class="mt-2 flex flex-col gap-1.5">
+  <ul class="flex flex-col gap-0.5 p-2">
     {
-      references.map((reference) => (
-        <li class="flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-xs dark:border-neutral-800">
-          <span class="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-            {reference.kind}
-          </span>
-          {reference.url ? (
-            <a href={reference.url} class="truncate hover:underline" rel="noopener" target="_blank">
-              {reference.title}
-            </a>
-          ) : (
-            <span class="truncate">{reference.title}</span>
-          )}
-          <form method="POST" action={actions.deleteReference} class="ml-auto">
-            <input type="hidden" name="id" value={reference.id} />
-            <button class="text-[10px] text-red-600 hover:underline">{t.references.remove}</button>
-          </form>
-        </li>
-      ))
+      references.map((reference) => {
+        const payload = filePayload(reference);
+        return (
+          <li class="group flex items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            <span
+              class:list={[
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[8px] font-bold",
+                tileStyles[reference.kind] ?? tileStyles.url,
+              ]}
+            >
+              {t.references.kindShort(reference.kind).slice(0, 1)}
+            </span>
+            {payload ? (
+              <button
+                type="button"
+                class="min-w-0 flex-1 truncate text-left hover:text-accent"
+                data-preview-url={`/api/references/${reference.id}/file`}
+                data-preview-mime={payload.mime}
+                data-preview-name={payload.file_name}
+              >
+                {reference.title}
+              </button>
+            ) : reference.url ? (
+              <a
+                href={reference.url}
+                class="min-w-0 flex-1 truncate hover:text-accent"
+                rel="noopener"
+                target="_blank"
+              >
+                {reference.title}
+              </a>
+            ) : (
+              <span class="min-w-0 flex-1 truncate">{reference.title}</span>
+            )}
+            <span class="font-mono text-[9px] uppercase tracking-[0.08em] text-neutral-400">
+              {t.references.kindShort(reference.kind)}
+            </span>
+            <form method="POST" action={actions.deleteReference}>
+              <input type="hidden" name="id" value={reference.id} />
+              <button class="hidden text-[10px] text-red-600 hover:underline group-hover:inline">
+                {t.references.remove}
+              </button>
+            </form>
+          </li>
+        );
+      })
     }
-    {references.length === 0 && <li class="px-2 text-xs text-neutral-500">{t.references.empty}</li>}
+    {references.length === 0 && <li class="px-1.5 py-1 text-xs text-neutral-500">{t.references.empty}</li>}
   </ul>
+</section>
 
-  <form method="POST" action={actions.addReference} class="mt-3 flex flex-col gap-1.5 px-2">
+<Modal id="add-reference-modal" title={t.references.add}>
+  <form
+    method="POST"
+    action={actions.addReference}
+    enctype="multipart/form-data"
+    class="flex flex-col gap-3"
+    data-add-reference-form
+  >
     <input type="hidden" name="specId" value={specId} />
-    <select name="kind" aria-label={t.references.kindLabel} class="rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950">
-      <option value="url">{t.references.kindUrl}</option>
-      <option value="github_code">{t.references.kindGithub}</option>
-      <option value="spec">{t.references.kindSpec}</option>
-    </select>
-    <input name="title" required placeholder={t.references.titlePlaceholder} class="rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950" />
-    <input name="target" required placeholder={t.references.urlPlaceholder} class="rounded border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-950" />
-    <button class="self-start rounded bg-neutral-900 px-2.5 py-1 text-xs text-white dark:bg-neutral-100 dark:text-neutral-900">
+    <label class="flex flex-col gap-1 text-xs">
+      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+        {t.references.kindLabel}
+      </span>
+      <select name="kind" data-ref-kind class="rounded border border-line bg-transparent px-2 py-1.5 text-sm">
+        <option value="file" selected>{t.references.kindFile}</option>
+        <option value="url">{t.references.kindUrl}</option>
+        <option value="github_code">{t.references.kindGithub}</option>
+        <option value="spec">{t.references.kindSpec}</option>
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-xs">
+      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+        {t.references.titlePlaceholder}
+      </span>
+      <input
+        name="title"
+        required
+        placeholder={t.references.titlePlaceholder}
+        class="rounded border border-line bg-transparent px-2 py-1.5 text-sm placeholder:text-neutral-400"
+      />
+    </label>
+    <label class="flex flex-col gap-1 text-xs" data-ref-target-row>
+      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500" data-ref-target-label>
+        {t.references.kindUrl}
+      </span>
+      <input
+        name="target"
+        placeholder={t.references.urlPlaceholder}
+        data-ref-target
+        data-placeholder-url={t.references.urlPlaceholder}
+        data-placeholder-github={t.references.githubPlaceholder}
+        data-placeholder-spec={t.references.specIdPlaceholder}
+        class="rounded border border-line bg-transparent px-2 py-1.5 text-sm placeholder:text-neutral-400"
+      />
+    </label>
+    <label class="hidden flex-col gap-1 text-xs" data-ref-file-row>
+      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+        {t.references.fileLabel}
+      </span>
+      <input
+        name="file"
+        type="file"
+        data-ref-file
+        accept={UPLOAD_ACCEPT}
+        class="rounded border border-dashed border-line bg-transparent px-2 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-accent"
+      />
+    </label>
+    <button class="self-start rounded bg-accent px-3 py-1.5 text-sm font-semibold text-on-accent hover:opacity-90">
       {t.references.add}
     </button>
   </form>
-</section>
+</Modal>
+
+<Modal id="reference-preview-modal" title={t.references.previewTitle} size="lg">
+  <p class="truncate text-sm font-semibold" data-preview-title></p>
+  <div
+    class="mt-3 max-h-[60vh] overflow-auto rounded border border-line bg-paper"
+    data-preview-body
+    data-unsupported-note={t.references.previewUnsupported}
+    data-loading-note={t.references.previewLoading}
+  >
+  </div>
+  <a
+    class="mt-3 inline-block rounded border border-line px-3 py-1 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+    data-preview-download
+    download
+  >
+    {t.references.download}
+  </a>
+</Modal>
+
+<script>
+  // Add-reference modal: the kind picker swaps the target input for a file
+  // input (and back), keeping required-ness honest.
+  const form = document.querySelector<HTMLFormElement>("[data-add-reference-form]");
+  const kind = form?.querySelector<HTMLSelectElement>("[data-ref-kind]");
+  if (form && kind) {
+    const targetRow = form.querySelector<HTMLElement>("[data-ref-target-row]")!;
+    const targetLabel = form.querySelector<HTMLElement>("[data-ref-target-label]")!;
+    const target = form.querySelector<HTMLInputElement>("[data-ref-target]")!;
+    const fileRow = form.querySelector<HTMLElement>("[data-ref-file-row]")!;
+    const file = form.querySelector<HTMLInputElement>("[data-ref-file]")!;
+    const apply = () => {
+      const isFile = kind.value === "file";
+      targetRow.classList.toggle("hidden", isFile);
+      targetRow.classList.toggle("flex", !isFile);
+      fileRow.classList.toggle("hidden", !isFile);
+      fileRow.classList.toggle("flex", isFile);
+      target.required = !isFile;
+      file.required = isFile;
+      const placeholders: Record<string, string | undefined> = {
+        url: target.dataset.placeholderUrl,
+        github_code: target.dataset.placeholderGithub,
+        spec: target.dataset.placeholderSpec,
+      };
+      target.placeholder = placeholders[kind.value] ?? "";
+      targetLabel.textContent =
+        kind.options[kind.selectedIndex]?.textContent ?? targetLabel.textContent;
+    };
+    kind.addEventListener("change", apply);
+    apply();
+
+    // Auto-title (#27): a chosen file fills the empty title with its name;
+    // a pasted URL asks the server for the page's <title>.
+    const title = form.querySelector<HTMLInputElement>('input[name="title"]')!;
+    file.addEventListener("change", () => {
+      const name = file.files?.[0]?.name;
+      if (name && !title.value.trim()) {
+        title.value = name.replace(/\.[^.]+$/, "");
+      }
+    });
+    const fillTitleFromUrl = async () => {
+      const value = target.value.trim();
+      if (title.value.trim() || kind.value === "spec" || !/^https?:\/\//.test(value)) return;
+      try {
+        const response = await fetch(`/api/url-title?url=${encodeURIComponent(value)}`);
+        if (!response.ok) return;
+        const data = (await response.json()) as { title?: string };
+        if (data.title && !title.value.trim()) title.value = data.title;
+      } catch {
+        // Best-effort — the author can always type a title.
+      }
+    };
+    target.addEventListener("change", () => void fillTitleFromUrl());
+    target.addEventListener("blur", () => void fillTitleFromUrl());
+  }
+
+  // File preview modal: image/PDF/text render inline, everything else falls
+  // back to the download link.
+  const previewDialog = document.getElementById("reference-preview-modal") as HTMLDialogElement | null;
+  if (previewDialog) {
+    const title = previewDialog.querySelector<HTMLElement>("[data-preview-title]")!;
+    const body = previewDialog.querySelector<HTMLElement>("[data-preview-body]")!;
+    const download = previewDialog.querySelector<HTMLAnchorElement>("[data-preview-download]")!;
+    document.addEventListener("click", (event) => {
+      const trigger = (event.target as HTMLElement).closest?.("[data-preview-url]");
+      if (!(trigger instanceof HTMLElement)) return;
+      const url = trigger.dataset.previewUrl!;
+      const mime = trigger.dataset.previewMime ?? "";
+      title.textContent = trigger.dataset.previewName ?? "";
+      download.href = url;
+      body.replaceChildren();
+      if (mime.startsWith("image/")) {
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = title.textContent ?? "";
+        img.className = "mx-auto max-h-[56vh] w-auto";
+        body.appendChild(img);
+      } else if (mime === "application/pdf") {
+        const frame = document.createElement("iframe");
+        frame.src = url;
+        frame.className = "h-[56vh] w-full";
+        body.appendChild(frame);
+      } else if (mime.startsWith("text/") || mime === "application/json") {
+        const pre = document.createElement("pre");
+        pre.className = "whitespace-pre-wrap p-3 font-mono text-xs";
+        pre.textContent = body.dataset.loadingNote ?? "";
+        body.appendChild(pre);
+        fetch(url)
+          .then((response) => response.text())
+          .then((text) => {
+            pre.textContent = text.slice(0, 100_000);
+          });
+      } else {
+        const note = document.createElement("p");
+        note.className = "p-3 text-sm text-neutral-500";
+        note.textContent = body.dataset.unsupportedNote ?? "";
+        body.appendChild(note);
+      }
+      previewDialog.showModal();
+    });
+  }
+</script>
