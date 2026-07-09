@@ -7,8 +7,8 @@ specpasa is a self-hosted visual spec builder. Start from rough thoughts and ref
 **Goal:** make Spec Driven Development the way of development — connected to the tools, distributed among team members, no silos; add value, not friction.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/landing-dark.png" />
-  <img alt="specpasa landing page (M0 scaffold) running locally" src="docs/assets/landing-light.png" />
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/study-workspace-dark.png" />
+  <img alt="The spec workspace: title block with live presence avatars, outline/references/connectors sidebar, serif document sheet with review flags, comment threads in the rail, and the revision strip with Ask AI docked below" src="docs/assets/study-workspace-light.png" />
 </picture>
 
 ## How it works
@@ -16,28 +16,67 @@ specpasa is a self-hosted visual spec builder. Start from rough thoughts and ref
 1. Create a **project**, invite members, and capture an **intent**.
 2. Open a blank **spec**, dump rough thoughts and references (links, files, GitHub code).
 3. Let AI draft the PRD — using your **local CLI** (claude, codex), **local Ollama**, or **cloud providers** (Anthropic, OpenAI, Google, OpenRouter, any OpenAI-compatible endpoint).
-4. Teammates comment inline on blocks; threads are resolved; every iteration is a new immutable version.
+4. Teammates comment inline on blocks; threads are resolved; edits autosave to a working draft and become an immutable version only when you say so.
 5. **Freeze** the PRD → start the **ERD** phase: reference source code, weigh options, draw mermaid diagrams.
 6. Freeze the ERD → break it down into **tasks**, group into epics, and export to GitHub, Jira, or Linear.
 7. Fork any spec from any version to explore a different direction.
 
 ## A look inside
 
-The spec workspace — outline and attachments on the left, the document as rendered blocks in the center with a floating Ask AI card, block-anchored comment threads on the right, every save an immutable version:
+The workspace above is the core loop: a **title block** carries the spec's phase, revision, status stamp, and a Google-Docs-style **presence crew**; the left rail stacks **outline · references · connectors** (GitHub live, Drive/Confluence/Jira surfaced); the document is a serif sheet whose commented blocks wear a marigold flag; block-anchored **review threads** live on the right; and the **revision strip** docks at the bottom — freezing stays gated while threads are open, with the count updating live.
 
-![Three-panel spec workspace: outline, AI-drafted PRD with a mermaid diagram, and a comment thread in the rail](docs/assets/workspace.png)
+**Ask AI** sits centered in the dock — hover opens the composer, which shows exactly what context the draft will use: toggle chips for every attached reference, plus every open review comment folded in automatically:
 
-Review gates keep collaboration honest — freezing warns while comment threads are still open:
+![The Ask AI composer open above the revision strip: prompt box, provider picker, reference context chips, and a note that open review comments will be included](docs/assets/study-askai-light.png)
 
-![Freeze control disabled with a "1 comment thread is still open" warning and an explicit Freeze-anyway arm](docs/assets/freeze-warning.png)
+**References** attach through a modal — file uploads (type-allowlisted, previewable in place), URLs that auto-title themselves, GitHub code, or sibling specs — and feed straight into AI drafting context:
 
-| Version history — AI drafts are marked                                  | AI providers — local CLIs & Ollama detected, keys encrypted                                             |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| ![Version history with an AI-generated badge](docs/assets/versions.png) | ![Provider settings detecting Ollama, claude CLI, and codex CLI on the host](docs/assets/providers.png) |
+![The add-reference modal defaulting to file upload, with kind picker, auto-filled title, and file chooser](docs/assets/study-reference-modal-light.png)
+
+<table>
+  <tr>
+    <th>Version history — AI drafts are marked, any version forks</th>
+    <th>Specs at a glance — phase badge and lifecycle stamp per spec</th>
+  </tr>
+  <tr>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/study-versions-dark.png" />
+        <img alt="Version history list with mono version badges, AI-generated markers, and fork buttons" src="docs/assets/study-versions-light.png" />
+      </picture>
+    </td>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/study-intent-dark.png" />
+        <img alt="An intent's spec list with phase badges and draft/in-review/frozen stamps" src="docs/assets/study-intent-light.png" />
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <th>AI providers — local CLIs &amp; Ollama detected, keys encrypted</th>
+    <th>Sign in — the same design system from the first screen</th>
+  </tr>
+  <tr>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/study-providers-dark.png" />
+        <img alt="Provider settings detecting Ollama and local CLIs, with add-provider modals" src="docs/assets/study-providers-light.png" />
+      </picture>
+    </td>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/study-login-dark.png" />
+        <img alt="The login screen: serif wordmark and a centered form card on a faint drafting grid" src="docs/assets/study-login-light.png" />
+      </picture>
+    </td>
+  </tr>
+</table>
+
+Every screen ships in light and dark — a warm paper theme and a lamp-lit charcoal one, switchable from the nav or following the OS.
 
 ## Status
 
-**M1–M3 plus the local-CLI slice of M5 are complete** (on SQLite): the full journey from blank spec → AI draft (cloud, Ollama, or the local `claude` CLI — no API key) → inline block-anchored review with roles and invites → freeze → next phase or fork, in a Google-Docs-style three-panel workspace. Next up: M4 integrations (GitHub Issues, Jira, Linear), realtime presence, Postgres parity. See [docs/roadmap.md](docs/roadmap.md), and the spec documents this project was (of course) built from:
+**M1–M4 plus M5's realtime and local-CLI slices are complete** (on SQLite): the full journey from blank spec → AI draft (cloud, Ollama, or the local `claude` CLI — no API key) → inline block-anchored review with live presence, roles, and invites → working-draft autosave with explicit immutable versions → freeze → next phase, fork, or **export to GitHub** (document commits + one issue per epic, idempotently). The whole app wears "The Study" design system — warm paper and lamp-lit charcoal themes, self-hosted type, modal flows. Next up: Jira/Linear/Drive connectors and Postgres parity in CI. See [docs/roadmap.md](docs/roadmap.md), and the spec documents this project was (of course) built from:
 
 - [Product requirements](docs/prd.md)
 - [Domain model](docs/domain-model.md)
