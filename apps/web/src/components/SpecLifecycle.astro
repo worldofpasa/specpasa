@@ -24,31 +24,47 @@ const available = transitions.filter((transition) =>
 <div class="flex flex-wrap items-center justify-end gap-2">
   {
     available.map((transition) => {
-      const guarded = transition.to === "frozen" && openThreads > 0;
+      const isFreeze = transition.to === "frozen";
+      const guarded = isFreeze && openThreads > 0;
       return (
         <form
           method="POST"
           action={actions.transitionSpecStatus}
-          class={guarded ? "flex items-center gap-2" : undefined}
+          class={isFreeze ? "flex items-center gap-2" : undefined}
         >
           <input type="hidden" name="specId" value={spec.id} />
           <input type="hidden" name="to" value={transition.to} />
-          {guarded && (
-            <span class="rounded bg-review-soft px-2 py-0.5 text-xs text-review">
+          {isFreeze && (
+            <span
+              data-freeze-warning
+              data-count={openThreads}
+              data-warning-one={t.lifecycle.openThreadsWarning(1)}
+              data-warning-template={t.lifecycle.openThreadsWarningTemplate}
+              class:list={[
+                "rounded bg-review-soft px-2 py-0.5 text-xs text-review",
+                openThreads === 0 && "hidden",
+              ]}
+            >
               {t.lifecycle.openThreadsWarning(openThreads)}
             </span>
           )}
-          {guarded && (
-            <label class="flex items-center gap-1 text-xs text-neutral-500">
+          {isFreeze && (
+            <label
+              data-freeze-confirm
+              class:list={[
+                "flex items-center gap-1 text-xs text-neutral-500",
+                openThreads === 0 && "hidden",
+              ]}
+            >
               <input type="checkbox" id="freeze-confirm-box" class="accent-accent" />
               {t.lifecycle.freezeConfirmLabel}
             </label>
           )}
           <button
-            id={guarded ? "freeze-submit" : undefined}
+            id={isFreeze ? "freeze-submit" : undefined}
             disabled={guarded}
             class={`rounded px-3 py-1 text-xs font-semibold ${
-              transition.to === "frozen"
+              isFreeze
                 ? "bg-accent text-on-accent hover:opacity-90 disabled:opacity-40"
                 : "border border-line hover:bg-neutral-100 dark:hover:bg-neutral-800"
             }`}
@@ -72,13 +88,34 @@ const available = transitions.filter((transition) =>
 </div>
 
 <script>
-  // Freeze-with-open-threads requires an explicit confirm (FR-COLLAB-4):
-  // the checkbox arms the submit button.
+  // Freeze-with-open-threads requires an explicit confirm (FR-COLLAB-4).
+  // The count stays live via the CommentsPanel's `specpasa:threads` event
+  // (#29) — opening or resolving threads updates the guard without a reload.
   const box = document.getElementById("freeze-confirm-box");
   const submit = document.getElementById("freeze-submit");
-  if (box instanceof HTMLInputElement && submit instanceof HTMLButtonElement) {
-    box.addEventListener("change", () => {
-      submit.disabled = !box.checked;
-    });
-  }
+  const warning = document.querySelector<HTMLElement>("[data-freeze-warning]");
+  const confirmLabel = document.querySelector<HTMLElement>("[data-freeze-confirm]");
+  let openCount = warning ? Number(warning.dataset.count) || 0 : 0;
+
+  const sync = () => {
+    warning?.classList.toggle("hidden", openCount === 0);
+    confirmLabel?.classList.toggle("hidden", openCount === 0);
+    if (warning && openCount > 0) {
+      warning.textContent =
+        openCount === 1
+          ? (warning.dataset.warningOne ?? "")
+          : (warning.dataset.warningTemplate ?? "").replace("{n}", String(openCount));
+    }
+    if (submit instanceof HTMLButtonElement) {
+      submit.disabled = openCount > 0 && !(box instanceof HTMLInputElement && box.checked);
+    }
+  };
+
+  box?.addEventListener("change", sync);
+  window.addEventListener("specpasa:threads", (event) => {
+    const { counts } = (event as CustomEvent<{ counts: Record<string, number> }>).detail;
+    openCount = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    sync();
+  });
+  sync();
 </script>

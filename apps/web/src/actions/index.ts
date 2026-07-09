@@ -30,7 +30,14 @@ import { getDb, insertSpecVersion, schema, and, desc, eq } from "../lib/db";
 import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
 import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
-import { deleteUpload, saveUpload, MAX_UPLOAD_BYTES, type FilePayload } from "../lib/uploads";
+import {
+  deleteUpload,
+  isAllowedUpload,
+  saveUpload,
+  ALLOWED_UPLOAD_EXTENSIONS,
+  MAX_UPLOAD_BYTES,
+  type FilePayload,
+} from "../lib/uploads";
 
 const now = () => Date.now();
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -40,6 +47,12 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 async function storeReferenceFile(file: File | undefined): Promise<Record<string, unknown>> {
   if (!file || file.size === 0) {
     throw new ActionError({ code: "BAD_REQUEST", message: "Choose a file to upload" });
+  }
+  if (!isAllowedUpload(file.name)) {
+    throw new ActionError({
+      code: "BAD_REQUEST",
+      message: `File type not allowed — use ${ALLOWED_UPLOAD_EXTENSIONS.join(", ")}`,
+    });
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new ActionError({

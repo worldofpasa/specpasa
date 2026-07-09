@@ -108,27 +108,49 @@ function scrollToBlock(blockId: string) {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+/**
+ * Hierarchical numbering relative to the document's top heading level (#33):
+ * a doc starting at h2 numbers that h2 as "1" and an h3 under it as "1.1".
+ * Level jumps (h1 straight to h3) clamp to the next depth down.
+ */
+function outlineLabels(entries: TocEntry[], minLevel: number): Map<string, string> {
+  const counters: number[] = [];
+  const labels = new Map<string, string>();
+  for (const entry of entries) {
+    const depth = Math.min(entry.level - minLevel, counters.length);
+    counters.length = depth + 1;
+    counters[depth] = (counters[depth] ?? 0) + 1;
+    labels.set(entry.blockId, counters.join("."));
+  }
+  return labels;
+}
+
 function Outline({ entries }: { entries: TocEntry[] }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // Group h2/h3 entries under the preceding h1 so sections can fold.
+  const minLevel = useMemo(
+    () => (entries.length ? Math.min(...entries.map((entry) => entry.level)) : 1),
+    [entries],
+  );
+  const labels = useMemo(() => outlineLabels(entries, minLevel), [entries, minLevel]);
+  // Group deeper entries under the preceding top-level heading so sections fold.
   const groups = useMemo(() => {
     const result: { head: TocEntry; children: TocEntry[] }[] = [];
     for (const entry of entries) {
-      if (entry.level === 1 || result.length === 0) {
+      if (entry.level === minLevel || result.length === 0) {
         result.push({ head: entry, children: [] });
       } else {
         result[result.length - 1]!.children.push(entry);
       }
     }
     return result;
-  }, [entries]);
+  }, [entries, minLevel]);
 
   if (entries.length === 0) {
     return <p className="px-3 py-2 text-xs text-neutral-500">{t.workspace.outlineEmpty}</p>;
   }
   return (
     <nav className="flex flex-col gap-0.5 p-2 text-sm">
-      {groups.map((group, groupIndex) => (
+      {groups.map((group) => (
         <div key={group.head.blockId}>
           <div className="flex items-center gap-1">
             {group.children.length > 0 && (
@@ -151,20 +173,20 @@ function Outline({ entries }: { entries: TocEntry[] }) {
               className="flex min-w-0 flex-1 items-baseline gap-2 rounded px-2 py-1 text-left font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
               <span className="shrink-0 font-mono text-[10px] text-neutral-400">
-                {groupIndex + 1}.0
+                {labels.get(group.head.blockId)}
               </span>
               <span className="truncate">{group.head.text}</span>
             </button>
           </div>
           {!collapsed.has(group.head.blockId) &&
-            group.children.map((child, childIndex) => (
+            group.children.map((child) => (
               <button
                 key={child.blockId}
                 onClick={() => scrollToBlock(child.blockId)}
-                className={`flex w-full min-w-0 items-baseline gap-2 rounded px-2 py-0.5 text-left text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800 ${child.level === 2 ? "ml-5" : "ml-9"}`}
+                className={`flex w-full min-w-0 items-baseline gap-2 rounded px-2 py-0.5 text-left text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800 ${child.level - minLevel === 1 ? "ml-5" : "ml-9"}`}
               >
                 <span className="shrink-0 font-mono text-[10px] text-neutral-400">
-                  {groupIndex + 1}.{childIndex + 1}
+                  {labels.get(child.blockId)}
                 </span>
                 <span className="truncate">{child.text}</span>
               </button>
@@ -184,13 +206,10 @@ export function requestBlockComment(blockId: string) {
 
 function DocBlock({
   block,
-  index,
   commentsEnabled,
   openThreads,
 }: {
   block: SpecBlock;
-  /** Position on the sheet — rendered as the gutter ID (B·01, B·02 …). */
-  index: number;
   commentsEnabled: boolean;
   /** Open comment threads anchored to this block — marigold flag when > 0. */
   openThreads: number;
@@ -201,12 +220,6 @@ function DocBlock({
       data-block-id={block.block_id}
       className={`group relative scroll-mt-24 ${flagged ? "-mx-3 rounded bg-review-soft/70 px-3 py-1" : ""}`}
     >
-      <span
-        aria-hidden="true"
-        className={`absolute top-1.5 hidden w-8 select-none text-right font-mono text-[9px] text-accent/70 lg:block ${flagged ? "-left-14" : "-left-11"}`}
-      >
-        {t.workspace.blockId(index + 1)}
-      </span>
       {/* Inside the block's edge so the hover area stays contiguous (#26) —
           at -right-9 the pointer left the block crossing the gap and the
           button vanished before it could be clicked. */}
@@ -249,16 +262,15 @@ function Sheet({
   openCounts: Record<string, number>;
 }) {
   return (
-    <div className="relative mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm lg:before:absolute lg:before:inset-y-0 lg:before:left-9 lg:before:w-px lg:before:bg-line">
+    <div className="relative mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm">
       {blocks.length === 0 ? (
         <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {blocks.map((block, index) => (
+          {blocks.map((block) => (
             <DocBlock
               key={block.block_id}
               block={block}
-              index={index}
               commentsEnabled={commentsEnabled}
               openThreads={openCounts[block.block_id] ?? 0}
             />

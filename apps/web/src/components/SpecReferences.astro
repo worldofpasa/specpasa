@@ -3,7 +3,7 @@ import { actions } from "astro:actions";
 import Modal from "./Modal.astro";
 import { getDb, schema, eq } from "../lib/db";
 import { t } from "../lib/strings";
-import type { FilePayload } from "../lib/uploads";
+import { UPLOAD_ACCEPT, type FilePayload } from "../lib/uploads";
 
 interface Props {
   specId: string;
@@ -107,10 +107,10 @@ const filePayload = (reference: (typeof references)[number]) =>
         {t.references.kindLabel}
       </span>
       <select name="kind" data-ref-kind class="rounded border border-line bg-transparent px-2 py-1.5 text-sm">
+        <option value="file" selected>{t.references.kindFile}</option>
         <option value="url">{t.references.kindUrl}</option>
         <option value="github_code">{t.references.kindGithub}</option>
         <option value="spec">{t.references.kindSpec}</option>
-        <option value="file">{t.references.kindFile}</option>
       </select>
     </label>
     <label class="flex flex-col gap-1 text-xs">
@@ -146,6 +146,7 @@ const filePayload = (reference: (typeof references)[number]) =>
         name="file"
         type="file"
         data-ref-file
+        accept={UPLOAD_ACCEPT}
         class="rounded border border-dashed border-line bg-transparent px-2 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-accent"
       />
     </label>
@@ -203,6 +204,30 @@ const filePayload = (reference: (typeof references)[number]) =>
     };
     kind.addEventListener("change", apply);
     apply();
+
+    // Auto-title (#27): a chosen file fills the empty title with its name;
+    // a pasted URL asks the server for the page's <title>.
+    const title = form.querySelector<HTMLInputElement>('input[name="title"]')!;
+    file.addEventListener("change", () => {
+      const name = file.files?.[0]?.name;
+      if (name && !title.value.trim()) {
+        title.value = name.replace(/\.[^.]+$/, "");
+      }
+    });
+    const fillTitleFromUrl = async () => {
+      const value = target.value.trim();
+      if (title.value.trim() || kind.value === "spec" || !/^https?:\/\//.test(value)) return;
+      try {
+        const response = await fetch(`/api/url-title?url=${encodeURIComponent(value)}`);
+        if (!response.ok) return;
+        const data = (await response.json()) as { title?: string };
+        if (data.title && !title.value.trim()) title.value = data.title;
+      } catch {
+        // Best-effort — the author can always type a title.
+      }
+    };
+    target.addEventListener("change", () => void fillTitleFromUrl());
+    target.addEventListener("blur", () => void fillTitleFromUrl());
   }
 
   // File preview modal: image/PDF/text render inline, everything else falls

@@ -11,6 +11,35 @@ import { newId } from "@specpasa/core";
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Allowed upload types (#27): documents, images, and text-like data files.
+ * SVG is deliberately excluded — inline same-origin serving would make an
+ * uploaded SVG a stored-XSS vector.
+ */
+export const ALLOWED_UPLOAD_EXTENSIONS = [
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".txt",
+  ".md",
+  ".markdown",
+  ".csv",
+  ".json",
+  ".yaml",
+  ".yml",
+] as const;
+
+/** For the file input's `accept` attribute — mirrors the server allowlist. */
+export const UPLOAD_ACCEPT = ALLOWED_UPLOAD_EXTENSIONS.join(",");
+
+export function isAllowedUpload(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  return ALLOWED_UPLOAD_EXTENSIONS.some((extension) => lower.endsWith(extension));
+}
+
 export interface FilePayload {
   file_name: string;
   mime: string;

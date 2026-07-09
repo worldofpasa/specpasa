@@ -148,6 +148,8 @@ export const t = {
       ] ?? status,
     openThreadsWarning: (n: number) =>
       n === 1 ? "1 comment thread is still open." : `${n} comment threads are still open.`,
+    /** Client-side template for the live count (SpecLifecycle inline script). */
+    openThreadsWarningTemplate: "{n} comment threads are still open.",
     freezeConfirmLabel: "Freeze anyway",
   },
   references: {
@@ -185,7 +187,6 @@ export const t = {
     },
     outline: "Outline",
     outlineEmpty: "Headings will appear here as the document grows.",
-    blockId: (n: number) => `B·${String(n).padStart(2, "0")}`,
     collapsePanel: "Collapse panel",
     expandPanel: "Expand panel",
     attachments: "Attachments",
