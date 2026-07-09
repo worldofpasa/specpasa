@@ -523,7 +523,13 @@ function FloatingAi({
               ? t.editor.aiDraft
               : t.editor.aiRevise}
         </button>
-        <span className="hidden text-xs text-neutral-500 sm:inline">{t.editor.aiAutoSaveNote}</span>
+        <span
+          title={t.editor.aiAutoSaveNote}
+          aria-label={t.editor.aiAutoSaveNote}
+          className="cursor-help text-sm text-neutral-400 hover:text-ink"
+        >
+          {t.ui.infoGlyph}
+        </span>
         <button
           onClick={() => setOpen(false)}
           className="ml-auto text-xs text-neutral-500 hover:underline"

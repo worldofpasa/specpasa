@@ -13,6 +13,7 @@ export const t = {
   ui: {
     close: "Close",
     closeGlyph: "✕",
+    infoGlyph: "ⓘ",
   },
   nav: {
     projects: "Projects",
