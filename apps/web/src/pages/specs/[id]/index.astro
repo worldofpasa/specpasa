@@ -73,6 +73,16 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
   snippet: b.markdown.slice(0, 100),
 }));
 
+// Working draft buffer (#32): only offered when it's newer than the current
+// version — an older buffer is superseded and ignored.
+const draft =
+  canEdit(role) &&
+  spec.status !== "frozen" &&
+  spec.draft_markdown &&
+  (!current || (spec.draft_saved_at ?? 0) > current.created_at)
+    ? { markdown: spec.draft_markdown, savedAt: spec.draft_saved_at ?? 0 }
+    : null;
+
 // Attached references become Ask-AI context chips (#31).
 const referenceOptions = await db
   .select({
@@ -172,6 +182,7 @@ const versionNumbers = (
           blocks={current?.blocks ?? []}
           versions={versionNumbers}
           referenceOptions={referenceOptions}
+          draft={draft}
           canEditDoc={canEdit(role)}
           commentsEnabled={canComment(role)}
         >

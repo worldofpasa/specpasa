@@ -410,7 +410,50 @@ export const server = {
         summary: input.summary || null,
         createdBy: userId,
       });
+      // The explicit snapshot supersedes the working draft buffer (#32).
+      await db
+        .update(schema.specs)
+        .set({ draft_markdown: null, draft_saved_at: null, draft_saved_by: null })
+        .where(eq(schema.specs.id, spec.id));
       return { number };
+    },
+  }),
+
+  /**
+   * Working draft buffer (#32): edit-mode autosaves land here, NOT as
+   * versions. JSON accept so the editor's pagehide sendBeacon flush works.
+   */
+  saveDraft: defineAction({
+    input: z.object({ specId: z.string(), markdown: z.string() }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const db = getDb();
+      const [spec] = await db.select().from(schema.specs).where(eq(schema.specs.id, input.specId));
+      if (!spec) throw new ActionError({ code: "NOT_FOUND", message: "Spec not found" });
+      if (spec.status === "frozen") {
+        throw new ActionError({
+          code: "FORBIDDEN",
+          message: "Frozen specs are immutable — fork instead",
+        });
+      }
+      const savedAt = now();
+      await db
+        .update(schema.specs)
+        .set({ draft_markdown: input.markdown, draft_saved_at: savedAt, draft_saved_by: userId })
+        .where(eq(schema.specs.id, spec.id));
+      return { savedAt };
+    },
+  }),
+
+  discardDraft: defineAction({
+    input: z.object({ specId: z.string() }),
+    handler: async (input, context) => {
+      await requireEditor(context);
+      await getDb()
+        .update(schema.specs)
+        .set({ draft_markdown: null, draft_saved_at: null, draft_saved_by: null })
+        .where(eq(schema.specs.id, input.specId));
+      return { ok: true };
     },
   }),
 

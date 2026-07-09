@@ -26,6 +26,8 @@ interface Props {
   versions: number[];
   /** Attached references — Ask-AI context chips (#31). */
   referenceOptions: ReferenceOption[];
+  /** Working draft newer than the current version, if any (#32). */
+  draft?: { markdown: string; savedAt: number } | null;
   /** Editors can switch to edit mode, save, and use AI (canEdit role). */
   canEditDoc: boolean;
   /** Commenters+ get the per-block "+" affordance (canComment role). */
@@ -364,6 +366,45 @@ function RobotMark() {
   );
 }
 
+/** Toggle chips choosing which attached references feed the draft (#31). */
+function ContextChips({
+  referenceOptions,
+  excludedRefs,
+  onToggle,
+}: {
+  referenceOptions: ReferenceOption[];
+  excludedRefs: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  if (referenceOptions.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-line pt-2">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+        {t.editor.aiContextLabel}
+      </span>
+      {referenceOptions.map((reference) => {
+        const included = !excludedRefs.has(reference.id);
+        return (
+          <button
+            key={reference.id}
+            type="button"
+            aria-pressed={included}
+            title={included ? t.editor.aiRefIncluded : t.editor.aiRefExcluded}
+            onClick={() => onToggle(reference.id)}
+            className={`max-w-48 truncate rounded-full border px-2 py-0.5 text-[11px] ${
+              included
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-line text-neutral-400 line-through"
+            }`}
+          >
+            {reference.title}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FloatingAi({
   specId,
   versionNumber,
@@ -490,39 +531,18 @@ function FloatingAi({
           {t.workspace.aiCollapse}
         </button>
       </div>
-      {referenceOptions.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-line pt-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
-            {t.editor.aiContextLabel}
-          </span>
-          {referenceOptions.map((reference) => {
-            const included = !excludedRefs.has(reference.id);
-            return (
-              <button
-                key={reference.id}
-                type="button"
-                aria-pressed={included}
-                title={included ? t.editor.aiRefIncluded : t.editor.aiRefExcluded}
-                onClick={() =>
-                  setExcludedRefs((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(reference.id)) next.delete(reference.id);
-                    else next.add(reference.id);
-                    return next;
-                  })
-                }
-                className={`max-w-48 truncate rounded-full border px-2 py-0.5 text-[11px] ${
-                  included
-                    ? "border-accent bg-accent-soft text-accent"
-                    : "border-line text-neutral-400 line-through"
-                }`}
-              >
-                {reference.title}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <ContextChips
+        referenceOptions={referenceOptions}
+        excludedRefs={excludedRefs}
+        onToggle={(id) =>
+          setExcludedRefs((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          })
+        }
+      />
       {openComments > 0 && (
         <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
           {t.editor.aiIncludesComments(openComments)}
@@ -542,6 +562,7 @@ interface ToolbarProps {
   canEditDoc: boolean;
   saving: boolean;
   mode: "reading" | "edit";
+  draftState: "clean" | "dirty" | "saved";
   setMode: (mode: "reading" | "edit") => void;
   onSave: () => void;
 }
@@ -553,6 +574,7 @@ function WorkspaceToolbar({
   canEditDoc,
   saving,
   mode,
+  draftState,
   setMode,
   onSave,
 }: ToolbarProps) {
@@ -561,7 +583,12 @@ function WorkspaceToolbar({
       <span className="font-semibold">
         {versionNumber === 0 ? t.editor.blankSpec : t.editor.version(versionNumber)}
       </span>
-      {dirty && <span className="text-xs text-review">{t.editor.unsaved}</span>}
+      {draftState === "dirty" && <span className="text-xs text-review">{t.editor.unsaved}</span>}
+      {draftState === "saved" && dirty && (
+        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-400">
+          {t.editor.draftSaved}
+        </span>
+      )}
       <div className="ml-auto flex items-center gap-2">
         {!frozen && canEditDoc && (
           <div className="flex overflow-hidden rounded border border-neutral-300 text-xs dark:border-neutral-700">
@@ -594,31 +621,184 @@ function WorkspaceToolbar({
 }
 
 // ---------------------------------------------------------------------------
+// Left rail + editor pane (extracted from the shell)
+
+function LeftRail({
+  leftOpen,
+  setLeftOpen,
+  toc,
+  attachments,
+}: {
+  leftOpen: boolean;
+  setLeftOpen: (updater: (value: boolean) => boolean) => void;
+  toc: TocEntry[];
+  attachments?: ReactNode;
+}) {
+  return (
+    <aside
+      className={`sticky top-6 hidden max-h-[85vh] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
+    >
+      <button
+        onClick={() => setLeftOpen((v) => !v)}
+        title={leftOpen ? t.workspace.collapsePanel : t.workspace.expandPanel}
+        className="mb-2 self-start rounded border border-line px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      >
+        {leftOpen ? "«" : "»"}
+      </button>
+      {leftOpen && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded border border-line bg-sheet">
+            <h2 className="border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+              {t.workspace.outline}
+            </h2>
+            <Outline entries={toc} />
+          </div>
+          {attachments}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function EditorPane({
+  markdown,
+  setMarkdown,
+  restoredDraft,
+  onDiscard,
+}: {
+  markdown: string;
+  setMarkdown: (value: string) => void;
+  restoredDraft: boolean;
+  onDiscard: () => void;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-3xl rounded border border-line bg-sheet shadow-sm">
+      {restoredDraft && (
+        <p className="flex items-center gap-3 border-b border-dashed border-line bg-review-soft/60 px-6 py-2 text-xs text-review">
+          {t.editor.draftRestored}
+          <button onClick={onDiscard} className="font-semibold text-accent hover:underline">
+            {t.editor.discardDraft}
+          </button>
+        </p>
+      )}
+      <textarea
+        value={markdown}
+        onChange={(e) => setMarkdown(e.target.value)}
+        rows={24}
+        placeholder={t.editor.placeholder}
+        className="w-full resize-y bg-transparent px-6 py-5 font-mono text-sm outline-none"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Working draft autosave (#32)
+
+/**
+ * Typing never mints a version: the buffer syncs after a short pause and a
+ * pagehide beacon flushes anything still in-flight. "Save as new version"
+ * remains the explicit snapshot action.
+ */
+function useDraftAutosave({
+  specId,
+  markdown,
+  active,
+  lastSyncedRef,
+  setDraftState,
+}: {
+  specId: string;
+  markdown: string;
+  active: boolean;
+  lastSyncedRef: React.MutableRefObject<string>;
+  setDraftState: (state: "clean" | "dirty" | "saved") => void;
+}) {
+  useEffect(() => {
+    if (!active || markdown === lastSyncedRef.current) return;
+    setDraftState("dirty");
+    const handle = window.setTimeout(async () => {
+      const { error } = await actions.saveDraft({ specId, markdown });
+      if (!error) {
+        lastSyncedRef.current = markdown;
+        setDraftState("saved");
+      }
+    }, 1500);
+    return () => window.clearTimeout(handle);
+  }, [active, markdown, specId, lastSyncedRef, setDraftState]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (!active || markdown === lastSyncedRef.current) return;
+      navigator.sendBeacon(
+        "/_actions/saveDraft",
+        new Blob([JSON.stringify({ specId, markdown })], { type: "application/json" }),
+      );
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [active, markdown, specId, lastSyncedRef]);
+}
+
+// ---------------------------------------------------------------------------
 // Workspace shell
 
-export default function SpecWorkspace({
-  specId,
-  versionNumber,
-  frozen,
-  providers,
-  blocks,
-  versions,
-  referenceOptions,
-  canEditDoc,
-  commentsEnabled,
-  attachments,
-}: Props) {
-  const [mode, setMode] = useState<"reading" | "edit">(
-    versionNumber === 0 && !frozen && canEditDoc ? "edit" : "reading",
-  );
+function canWrite(frozen: boolean, canEditDoc: boolean): boolean {
+  return !frozen && canEditDoc;
+}
+
+function initialMode(props: Props): "reading" | "edit" {
+  const startInEdit = props.versionNumber === 0 || Boolean(props.draft);
+  return startInEdit && canWrite(props.frozen, props.canEditDoc) ? "edit" : "reading";
+}
+
+function seededMarkdown(draft: Props["draft"], versionMarkdown: string): string {
+  return draft?.markdown ?? versionMarkdown;
+}
+
+export default function SpecWorkspace(props: Props) {
+  const {
+    specId,
+    versionNumber,
+    frozen,
+    providers,
+    blocks,
+    versions,
+    referenceOptions,
+    draft,
+    canEditDoc,
+    commentsEnabled,
+    attachments,
+  } = props;
+  const [mode, setMode] = useState<"reading" | "edit">(initialMode(props));
   const initialMarkdown = useMemo(() => blocksToMarkdown(blocks), [blocks]);
-  const [markdown, setMarkdown] = useState(initialMarkdown);
+  const [markdown, setMarkdown] = useState(seededMarkdown(draft, initialMarkdown));
   const [leftOpen, setLeftOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
+  const [draftState, setDraftState] = useState<"clean" | "dirty" | "saved">(
+    draft ? "saved" : "clean",
+  );
+  const [restoredDraft, setRestoredDraft] = useState(Boolean(draft));
+  const lastSyncedRef = useRef(seededMarkdown(draft, initialMarkdown));
   const toc = useMemo(() => tocFromBlocks(blocks), [blocks]);
   const dirty = markdown !== initialMarkdown;
+
+  useDraftAutosave({
+    specId,
+    markdown,
+    active: mode === "edit" && canWrite(frozen, canEditDoc),
+    lastSyncedRef,
+    setDraftState,
+  });
+
+  async function discardDraft() {
+    await actions.discardDraft({ specId });
+    lastSyncedRef.current = initialMarkdown;
+    setMarkdown(initialMarkdown);
+    setDraftState("clean");
+    setRestoredDraft(false);
+  }
 
   // Per-block open-thread counts arrive from CommentsPanel (the data owner)
   // so flagged blocks stay live with SSE updates.
@@ -640,30 +820,11 @@ export default function SpecWorkspace({
     else window.location.reload();
   }
 
+  const reading = mode === "reading" || frozen || !canEditDoc;
+
   return (
     <div className="flex gap-6">
-      <aside
-        className={`sticky top-6 hidden max-h-[85vh] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
-      >
-        <button
-          onClick={() => setLeftOpen((v) => !v)}
-          title={leftOpen ? t.workspace.collapsePanel : t.workspace.expandPanel}
-          className="mb-2 self-start rounded border border-neutral-300 px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-        >
-          {leftOpen ? "«" : "»"}
-        </button>
-        {leftOpen && (
-          <div className="flex flex-col gap-4">
-            <div className="rounded border border-line bg-sheet">
-              <h2 className="border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                {t.workspace.outline}
-              </h2>
-              <Outline entries={toc} />
-            </div>
-            {attachments}
-          </div>
-        )}
-      </aside>
+      <LeftRail leftOpen={leftOpen} setLeftOpen={setLeftOpen} toc={toc} attachments={attachments} />
 
       <section className="min-w-0 flex-1 pb-8">
         <WorkspaceToolbar
@@ -673,22 +834,20 @@ export default function SpecWorkspace({
           canEditDoc={canEditDoc}
           saving={saving}
           mode={mode}
+          draftState={draftState}
           setMode={setMode}
           onSave={save}
         />
 
-        {mode === "reading" || frozen || !canEditDoc ? (
+        {reading ? (
           <Sheet blocks={blocks} commentsEnabled={commentsEnabled} openCounts={openCounts} />
         ) : (
-          <div className="mx-auto w-full max-w-3xl rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <textarea
-              value={markdown}
-              onChange={(e) => setMarkdown(e.target.value)}
-              rows={24}
-              placeholder={t.editor.placeholder}
-              className="w-full resize-y bg-transparent px-6 py-5 font-mono text-sm outline-none"
-            />
-          </div>
+          <EditorPane
+            markdown={markdown}
+            setMarkdown={setMarkdown}
+            restoredDraft={restoredDraft}
+            onDiscard={() => void discardDraft()}
+          />
         )}
         {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
 
