@@ -249,6 +249,7 @@ export const t = {
     threadCount: (n: number) => (n === 1 ? "1 thread" : `${n} threads`),
     composerHeading: "New comment",
     cancel: "Cancel",
+    actionFailed: (detail: string) => `Couldn't update the thread — ${detail}`,
     selectHint: "Hover a block in the document and click + to start a thread.",
   },
   connectors: {

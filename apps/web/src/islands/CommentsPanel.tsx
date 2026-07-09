@@ -40,6 +40,7 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
   const [composerBlockId, setComposerBlockId] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const snippetFor = useMemo(() => {
     const map = new Map(blocks.map((block) => [block.block_id, block.snippet]));
@@ -126,14 +127,32 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
     window.dispatchEvent(new CustomEvent("specpasa:threads", { detail: { counts } }));
   }, [threads]);
 
+  /**
+   * Every mutation reports failure into the pane (#34) — a rejected action
+   * (expired session, network, authz) must never look like a silent no-op.
+   */
+  async function runMutation(mutate: () => Promise<{ error?: { message: string } | null }>) {
+    setMutationError(null);
+    setBusy(true);
+    const { error } = await mutate();
+    setBusy(false);
+    if (error) {
+      setMutationError(error.message);
+      return false;
+    }
+    await refresh();
+    return true;
+  }
+
   async function post() {
     if (!composerBlockId || !body.trim()) return;
-    setBusy(true);
-    await actions.createThread({ specId, blockId: composerBlockId, body });
-    setBusy(false);
-    setBody("");
-    setComposerBlockId(null);
-    await refresh();
+    const ok = await runMutation(() =>
+      actions.createThread({ specId, blockId: composerBlockId, body }),
+    );
+    if (ok) {
+      setBody("");
+      setComposerBlockId(null);
+    }
   }
 
   const cards: CommentThreadCard[] = threads
@@ -159,16 +178,13 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
   const handlers = canComment
     ? {
         onResolve: async (threadId: string) => {
-          await actions.setThreadResolved({ threadId, resolved: true });
-          await refresh();
+          await runMutation(() => actions.setThreadResolved({ threadId, resolved: true }));
         },
         onReopen: async (threadId: string) => {
-          await actions.setThreadResolved({ threadId, resolved: false });
-          await refresh();
+          await runMutation(() => actions.setThreadResolved({ threadId, resolved: false }));
         },
         onReply: async (threadId: string, replyBody: string) => {
-          await actions.replyThread({ threadId, body: replyBody });
-          await refresh();
+          await runMutation(() => actions.replyThread({ threadId, body: replyBody }));
         },
       }
     : {};
@@ -187,6 +203,11 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
         </p>
       </div>
       <div className="flex flex-col gap-3 p-3">
+        {mutationError && (
+          <p className="rounded border border-red-300 bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            {t.comments.actionFailed(mutationError)}
+          </p>
+        )}
         {canComment && composerBlockId && (
           <div className="rounded border border-review bg-sheet p-3">
             <p className="text-xs font-semibold">{t.comments.composerHeading}</p>
