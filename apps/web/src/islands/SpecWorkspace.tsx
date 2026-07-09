@@ -10,6 +10,12 @@ interface ProviderOption {
   label: string;
 }
 
+interface ReferenceOption {
+  id: string;
+  title: string;
+  kind: string;
+}
+
 interface Props {
   specId: string;
   versionNumber: number;
@@ -18,6 +24,8 @@ interface Props {
   blocks: SpecBlock[];
   /** All revision numbers, oldest first — rendered as the revision strip. */
   versions: number[];
+  /** Attached references — Ask-AI context chips (#31). */
+  referenceOptions: ReferenceOption[];
   /** Editors can switch to edit mode, save, and use AI (canEdit role). */
   canEditDoc: boolean;
   /** Commenters+ get the per-block "+" affordance (canComment role). */
@@ -54,7 +62,7 @@ interface DraftCallbacks {
 }
 
 async function runDraft(
-  body: { specId: string; providerId: string; prompt: string },
+  body: { specId: string; providerId: string; prompt: string; referenceIds: string[] },
   callbacks: DraftCallbacks,
 ): Promise<void> {
   try {
@@ -322,19 +330,55 @@ function RevisionStrip({
 // ---------------------------------------------------------------------------
 // Ask-AI tray (centered in the dock; hover opens, click-outside/Esc closes)
 
+/** The tray's face (#31): a small robot head with sparkle eyes. */
+function RobotMark() {
+  const sparkle = (cx: number, cy: number) =>
+    `M ${cx} ${cy - 2.2} L ${cx + 0.7} ${cy - 0.7} L ${cx + 2.2} ${cy} L ${cx + 0.7} ${cy + 0.7} ` +
+    `L ${cx} ${cy + 2.2} L ${cx - 0.7} ${cy + 0.7} L ${cx - 2.2} ${cy} L ${cx - 0.7} ${cy - 0.7} Z`;
+  return (
+    <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 shrink-0" aria-hidden="true">
+      <line x1="12" y1="2.5" x2="12" y2="5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="12" cy="2.5" r="1" fill="currentColor" />
+      <rect
+        x="4.5"
+        y="5.5"
+        width="15"
+        height="13"
+        rx="3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path d={sparkle(9, 11)} fill="currentColor" />
+      <path d={sparkle(15, 11)} fill="currentColor" />
+      <line
+        x1="9.5"
+        y1="15.2"
+        x2="14.5"
+        y2="15.2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function FloatingAi({
   specId,
   versionNumber,
   frozen,
   providers,
+  referenceOptions,
   openComments,
-}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers"> & {
+}: Pick<Props, "specId" | "versionNumber" | "frozen" | "providers" | "referenceOptions"> & {
   /** Open review threads — drafting includes them, and the tray says so. */
   openComments: number;
 }) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [providerId, setProviderId] = useState(providers[0]?.id ?? "");
+  const [excludedRefs, setExcludedRefs] = useState<Set<string>>(new Set());
   const [streaming, setStreaming] = useState(false);
   const [streamed, setStreamed] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -369,8 +413,11 @@ function FloatingAi({
     setStreaming(true);
     setStreamed("");
     setError(null);
+    const referenceIds = referenceOptions
+      .filter((reference) => !excludedRefs.has(reference.id))
+      .map((reference) => reference.id);
     await runDraft(
-      { specId, providerId, prompt },
+      { specId, providerId, prompt, referenceIds },
       {
         onToken: (text) => {
           setStreamed((prev) => prev + text);
@@ -392,10 +439,11 @@ function FloatingAi({
         aria-expanded={open}
         className="flex items-center gap-2 rounded border border-accent bg-accent-soft px-5 py-1.5 text-sm font-semibold text-accent shadow-sm hover:opacity-90"
       >
+        <RobotMark />
         {t.workspace.aiPill}
       </button>
       {open && (
-        <div className="absolute bottom-full left-1/2 z-30 mb-2 w-[min(44rem,80vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
+        <div className="animate-tray-pop absolute bottom-full left-1/2 z-30 mb-2 w-[min(44rem,80vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
       {(streaming || streamed) && (
         <pre
           ref={streamRef}
@@ -442,6 +490,39 @@ function FloatingAi({
           {t.workspace.aiCollapse}
         </button>
       </div>
+      {referenceOptions.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-line pt-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+            {t.editor.aiContextLabel}
+          </span>
+          {referenceOptions.map((reference) => {
+            const included = !excludedRefs.has(reference.id);
+            return (
+              <button
+                key={reference.id}
+                type="button"
+                aria-pressed={included}
+                title={included ? t.editor.aiRefIncluded : t.editor.aiRefExcluded}
+                onClick={() =>
+                  setExcludedRefs((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(reference.id)) next.delete(reference.id);
+                    else next.add(reference.id);
+                    return next;
+                  })
+                }
+                className={`max-w-48 truncate rounded-full border px-2 py-0.5 text-[11px] ${
+                  included
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-line text-neutral-400 line-through"
+                }`}
+              >
+                {reference.title}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {openComments > 0 && (
         <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
           {t.editor.aiIncludesComments(openComments)}
@@ -522,6 +603,7 @@ export default function SpecWorkspace({
   providers,
   blocks,
   versions,
+  referenceOptions,
   canEditDoc,
   commentsEnabled,
   attachments,
@@ -623,6 +705,7 @@ export default function SpecWorkspace({
                 versionNumber={versionNumber}
                 frozen={frozen}
                 providers={providers}
+                referenceOptions={referenceOptions}
                 openComments={Object.values(openCounts).reduce((sum, n) => sum + n, 0)}
               />
             )}

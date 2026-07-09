@@ -96,11 +96,16 @@ async function resolveOne(reference: SpecReference): Promise<AgentContextItem> {
  * reference degrades to a note instead of blocking the draft — the model is
  * told the reference exists but couldn't be loaded.
  */
-export async function resolveReferences(specId: string): Promise<AgentContextItem[]> {
-  const references = await getDb()
+export async function resolveReferences(
+  specId: string,
+  /** When set, only these reference ids feed the context (#31 chips). */
+  onlyIds?: string[],
+): Promise<AgentContextItem[]> {
+  const rows = await getDb()
     .select()
     .from(schema.spec_references)
     .where(eq(schema.spec_references.spec_id, specId));
+  const references = onlyIds ? rows.filter((row) => onlyIds.includes(row.id)) : rows;
   return Promise.all(
     references.map(async (reference) => {
       try {

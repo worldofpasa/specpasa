@@ -64,13 +64,16 @@ interface DraftContext {
   config: typeof schema.ai_provider_configs.$inferSelect;
   latest: typeof schema.spec_versions.$inferSelect | undefined;
   prompt: string;
+  /** Sidebar references the author kept toggled on (#31); undefined = all. */
+  referenceIds?: string[];
 }
 
 async function resolveDraftContext(request: Request): Promise<DraftContext | Response> {
-  const { specId, providerId, prompt } = (await request.json()) as {
+  const { specId, providerId, prompt, referenceIds } = (await request.json()) as {
     specId?: string;
     providerId?: string;
     prompt?: string;
+    referenceIds?: string[];
   };
   if (!specId || !providerId || !prompt?.trim()) {
     return new Response("specId, providerId, and prompt are required", { status: 400 });
@@ -90,7 +93,7 @@ async function resolveDraftContext(request: Request): Promise<DraftContext | Res
     .where(eq(schema.spec_versions.spec_id, spec.id))
     .orderBy(desc(schema.spec_versions.number))
     .limit(1);
-  return { spec, config, latest, prompt };
+  return { spec, config, latest, prompt, referenceIds };
 }
 
 async function buildAgent(config: typeof schema.ai_provider_configs.$inferSelect) {
@@ -140,14 +143,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const context = await resolveDraftContext(request);
   if (context instanceof Response) return context;
-  const { spec, config, latest, prompt } = context;
+  const { spec, config, latest, prompt, referenceIds } = context;
 
   const agent = await buildAgentOrResponse(config);
   if (agent instanceof Response) return agent;
 
   const db = getDb();
   const blocks: SpecBlock[] = latest?.blocks ?? [];
-  const referenceContext = await resolveReferences(spec.id);
+  const referenceContext = await resolveReferences(spec.id, referenceIds);
   const commentsContext = await openCommentsContext(spec.id, blocks);
   const agentRequest: AgentRequest = {
     prompt,

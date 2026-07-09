@@ -73,6 +73,16 @@ const blockRefs = (current?.blocks ?? []).map((b) => ({
   snippet: b.markdown.slice(0, 100),
 }));
 
+// Attached references become Ask-AI context chips (#31).
+const referenceOptions = await db
+  .select({
+    id: schema.spec_references.id,
+    title: schema.spec_references.title,
+    kind: schema.spec_references.kind,
+  })
+  .from(schema.spec_references)
+  .where(eq(schema.spec_references.spec_id, spec.id));
+
 // Every revision, oldest first — the workspace dock renders these as the
 // revision strip (immutability made visible, The Study #18).
 const versionNumbers = (
@@ -161,6 +171,7 @@ const versionNumbers = (
           providers={providers}
           blocks={current?.blocks ?? []}
           versions={versionNumbers}
+          referenceOptions={referenceOptions}
           canEditDoc={canEdit(role)}
           commentsEnabled={canComment(role)}
         >

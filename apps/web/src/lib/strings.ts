@@ -90,6 +90,9 @@ export const t = {
       n === 1
         ? "1 open review comment will be included"
         : `${n} open review comments will be included`,
+    aiContextLabel: "Context",
+    aiRefIncluded: "Included — click to exclude",
+    aiRefExcluded: "Excluded — click to include",
   },
   versions: {
     heading: "Version history",
@@ -101,6 +104,9 @@ export const t = {
       `Block-level diff against ${base} — ${added} added, ${removed} removed, ${unchanged} unchanged.`,
     blankBase: "the blank spec",
     versionBase: (n: number) => `v${n}`,
+    backToWorkspace: "Back to workspace",
+    addedBadge: "Added",
+    removedBadge: "Removed",
   },
   providers: {
     heading: "AI Providers",
