@@ -4,3 +4,4 @@ dist/
 pnpm-lock.yaml
 packages/db/drizzle/
 .claude/
+packages/db/drizzle-pg/

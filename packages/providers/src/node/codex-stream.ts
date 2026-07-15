@@ -42,7 +42,11 @@ export function parseCodexStreamLine(line: string): CodexStreamItem {
     return IGNORE; // non-JSON noise on stdout
   }
   const isItemEvent = parsed.type === "item.completed" || parsed.type === "item.updated";
-  if (isItemEvent && parsed.item?.type === "agent_message" && typeof parsed.item.text === "string") {
+  if (
+    isItemEvent &&
+    parsed.item?.type === "agent_message" &&
+    typeof parsed.item.text === "string"
+  ) {
     return { kind: "message", id: parsed.item.id ?? "item", text: parsed.item.text };
   }
   if (parsed.type === "turn.failed" || parsed.type === "error") {

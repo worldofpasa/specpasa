@@ -17,11 +17,7 @@ import {
   parseEpicsFromMarkdown,
   SPEC_STATUSES,
 } from "@specpasa/core";
-import {
-  IntegrationError,
-  type ExternalRecord,
-  type TaskExportEpic,
-} from "@specpasa/integrations";
+import { IntegrationError, type ExternalRecord, type TaskExportEpic } from "@specpasa/integrations";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
 import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
@@ -857,7 +853,8 @@ export const server = {
       const db = getDb();
       // Object-level authz: thread must resolve into the caller's workspace.
       const resolvedSpecId = await threadSpecInWorkspace(input.threadId, workspace.id);
-      if (!resolvedSpecId) throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
+      if (!resolvedSpecId)
+        throw new ActionError({ code: "NOT_FOUND", message: "Thread not found" });
       await db
         .update(schema.comment_threads)
         .set(

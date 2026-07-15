@@ -53,7 +53,8 @@ async function openCommentsContext(
   const content = [
     "Unresolved review comments on the current document. Address each one in the revision where relevant; keep unrelated sections verbatim.",
     ...[...threads.values()].map(
-      (thread) => `On the block starting "${snippetFor(thread.blockId)}":\n${thread.lines.join("\n")}`,
+      (thread) =>
+        `On the block starting "${snippetFor(thread.blockId)}":\n${thread.lines.join("\n")}`,
     ),
   ].join("\n\n");
   return { kind: "comments", title: "Open review comments", content };

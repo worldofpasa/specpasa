@@ -83,9 +83,9 @@ describe("parseCodexStreamLine", () => {
     expect(
       parseCodexStreamLine(JSON.stringify({ type: "turn.failed", error: { message: "boom" } })),
     ).toEqual({ kind: "error", message: "boom" });
-    expect(parseCodexStreamLine(JSON.stringify({ type: "error", message: "rate limited" }))).toEqual(
-      { kind: "error", message: "rate limited" },
-    );
+    expect(
+      parseCodexStreamLine(JSON.stringify({ type: "error", message: "rate limited" })),
+    ).toEqual({ kind: "error", message: "rate limited" });
     expect(parseCodexStreamLine(JSON.stringify({ type: "turn.failed" })).kind).toBe("error");
   });
 });

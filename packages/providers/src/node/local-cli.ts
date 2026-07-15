@@ -134,7 +134,10 @@ export function createLocalCliAgent(config: LocalCliAgentConfig): SpecAgent {
     let text = "";
     let errored = false;
     try {
-      const session = CLI_SESSIONS[config.command](systemPrompt(request), userPrompt(request, mode));
+      const session = CLI_SESSIONS[config.command](
+        systemPrompt(request),
+        userPrompt(request, mode),
+      );
       const child = spawn(config.command, session.args, { stdio: ["pipe", "pipe", "pipe"] });
       // Attach both handlers synchronously: an unhandled ChildProcess "error"
       // (missing/broken binary) crashes the server, and "close" is not

@@ -485,76 +485,76 @@ function FloatingAi({
       </button>
       {open && (
         <div className="animate-tray-pop absolute bottom-full left-1/2 z-30 mb-2 w-[min(44rem,80vw)] -translate-x-1/2 rounded-lg border border-accent bg-sheet p-3 shadow-xl">
-      {(streaming || streamed) && (
-        <pre
-          ref={streamRef}
-          className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 font-mono text-xs dark:bg-neutral-950"
-        >
-          {streamed || "…"}
-        </pre>
-      )}
-      <textarea
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        rows={2}
-        placeholder={versionNumber === 0 ? t.editor.aiPromptDraft : t.editor.aiPromptRevise}
-        className="w-full rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
-      />
-      <div className="mt-2 flex items-center gap-2">
-        <select
-          value={providerId}
-          onChange={(e) => setProviderId(e.target.value)}
-          className="rounded border border-line bg-transparent px-2 py-1.5 text-xs"
-        >
-          {providers.map((provider) => (
-            <option key={provider.id} value={provider.id}>
-              {provider.label}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={draftWithAi}
-          disabled={streaming || !prompt.trim()}
-          className="rounded bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
-        >
-          {streaming
-            ? t.editor.aiGenerating
-            : versionNumber === 0
-              ? t.editor.aiDraft
-              : t.editor.aiRevise}
-        </button>
-        <span
-          title={t.editor.aiAutoSaveNote}
-          aria-label={t.editor.aiAutoSaveNote}
-          className="cursor-help text-sm text-neutral-400 hover:text-ink"
-        >
-          {t.ui.infoGlyph}
-        </span>
-        <button
-          onClick={() => setOpen(false)}
-          className="ml-auto text-xs text-neutral-500 hover:underline"
-        >
-          {t.workspace.aiCollapse}
-        </button>
-      </div>
-      <ContextChips
-        referenceOptions={referenceOptions}
-        excludedRefs={excludedRefs}
-        onToggle={(id) =>
-          setExcludedRefs((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-          })
-        }
-      />
-      {openComments > 0 && (
-        <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
-          {t.editor.aiIncludesComments(openComments)}
-        </p>
-      )}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {(streaming || streamed) && (
+            <pre
+              ref={streamRef}
+              className="mb-2 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-neutral-100 p-2 font-mono text-xs dark:bg-neutral-950"
+            >
+              {streamed || "…"}
+            </pre>
+          )}
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={2}
+            placeholder={versionNumber === 0 ? t.editor.aiPromptDraft : t.editor.aiPromptRevise}
+            className="w-full rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <select
+              value={providerId}
+              onChange={(e) => setProviderId(e.target.value)}
+              className="rounded border border-line bg-transparent px-2 py-1.5 text-xs"
+            >
+              {providers.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={draftWithAi}
+              disabled={streaming || !prompt.trim()}
+              className="rounded bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
+            >
+              {streaming
+                ? t.editor.aiGenerating
+                : versionNumber === 0
+                  ? t.editor.aiDraft
+                  : t.editor.aiRevise}
+            </button>
+            <span
+              title={t.editor.aiAutoSaveNote}
+              aria-label={t.editor.aiAutoSaveNote}
+              className="cursor-help text-sm text-neutral-400 hover:text-ink"
+            >
+              {t.ui.infoGlyph}
+            </span>
+            <button
+              onClick={() => setOpen(false)}
+              className="ml-auto text-xs text-neutral-500 hover:underline"
+            >
+              {t.workspace.aiCollapse}
+            </button>
+          </div>
+          <ContextChips
+            referenceOptions={referenceOptions}
+            excludedRefs={excludedRefs}
+            onToggle={(id) =>
+              setExcludedRefs((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })
+            }
+          />
+          {openComments > 0 && (
+            <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
+              {t.editor.aiIncludesComments(openComments)}
+            </p>
+          )}
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </div>
       )}
     </div>
