@@ -29,13 +29,16 @@ describe("status transitions", () => {
 });
 
 describe("phase progression", () => {
-  it("moves prd -> erd -> tasks -> end", () => {
+  it("moves draft -> prd -> erd -> tasks -> end", () => {
+    expect(nextPhase("draft")).toBe("prd");
     expect(nextPhase("prd")).toBe("erd");
     expect(nextPhase("erd")).toBe("tasks");
     expect(nextPhase("tasks")).toBeNull();
   });
 
   it("gates phase advancement on frozen status", () => {
+    expect(canAdvancePhase({ phase: "draft", status: "frozen" })).toBe(true);
+    expect(canAdvancePhase({ phase: "draft", status: "draft" })).toBe(false);
     expect(canAdvancePhase({ phase: "prd", status: "frozen" })).toBe(true);
     expect(canAdvancePhase({ phase: "prd", status: "in_review" })).toBe(false);
     expect(canAdvancePhase({ phase: "tasks", status: "frozen" })).toBe(false);
@@ -45,5 +48,6 @@ describe("phase progression", () => {
 describe("fork semantics", () => {
   it("forks into a draft of the same phase", () => {
     expect(forkInitialState("erd")).toEqual({ phase: "erd", status: "draft" });
+    expect(forkInitialState("draft")).toEqual({ phase: "draft", status: "draft" });
   });
 });

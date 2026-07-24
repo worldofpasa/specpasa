@@ -1,5 +1,9 @@
-export const SPEC_PHASES = ["prd", "erd", "tasks"] as const;
+export const SPEC_PHASES = ["draft", "prd", "erd", "tasks"] as const;
 export type SpecPhase = (typeof SPEC_PHASES)[number];
+
+/** Phases a new spec may start at: the draft (idea) phase is optional. */
+export const SPEC_START_PHASES = ["draft", "prd"] as const;
+export type SpecStartPhase = (typeof SPEC_START_PHASES)[number];
 
 export const SPEC_STATUSES = ["draft", "in_review", "frozen"] as const;
 export type SpecStatus = (typeof SPEC_STATUSES)[number];

@@ -4,8 +4,8 @@ import { SPEC_PHASES, type SpecPhase, type SpecStatus } from "./types.js";
  * Spec lifecycle rules (docs/domain-model.md "Rationale"):
  * - draft -> in_review -> frozen; in_review may go back to draft.
  * - frozen is terminal for a spec: iterate by forking, not by thawing.
- * - Freezing gates the phase transition: the next-phase spec (prd -> erd ->
- *   tasks) can only be derived from a frozen spec.
+ * - Freezing gates the phase transition: the next-phase spec (draft -> prd ->
+ *   erd -> tasks) can only be derived from a frozen spec.
  */
 const STATUS_TRANSITIONS: Record<SpecStatus, readonly SpecStatus[]> = {
   draft: ["in_review"],
