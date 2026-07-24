@@ -49,15 +49,21 @@ jobs:
 
       - name: Install Linux webview and bundler dependencies
         if: runner.os == 'Linux'
+        # libfuse2: linuxdeploy (Tauri's AppImage bundler) is itself an
+        # AppImage and cannot start without FUSE on GitHub runners.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
 
       - run: pnpm install --frozen-lockfile
 
       # Stages the production web server into src-tauri/resources/server,
       # then runs `tauri build` (bundle targets filtered per platform).
       - run: pnpm --filter @specpasa/desktop build
+        env:
+          # Belt and braces with libfuse2: run AppImage tooling by
+          # self-extraction instead of FUSE-mounting.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
 
       - uses: actions/upload-artifact@v4
         with:
