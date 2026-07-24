@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>specpasa</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: #fafaf9;
+        color: #57534e;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1c1917;
+          color: #a8a29e;
+        }
+        input {
+          background: #292524;
+          color: #e7e5e4;
+          border-color: #44403c;
+        }
+      }
+      .splash {
+        text-align: center;
+        max-width: 26rem;
+        padding: 0 1.5rem;
+      }
+      .name {
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: -0.02em;
+      }
+      .status {
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+      }
+      .dot {
+        display: inline-block;
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.2;
+        }
+      }
+      .error {
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: #b45309;
+      }
+      form {
+        margin-top: 1.25rem;
+        display: none;
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: left;
+      }
+      form.visible {
+        display: flex;
+      }
+      label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      input {
+        border: 1px solid #d6d3d1;
+        border-radius: 4px;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.85rem;
+      }
+      .row {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+      }
+      button {
+        border: 1px solid #d6d3d1;
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #57534e;
+        border-color: #57534e;
+        color: #fafaf9;
+      }
+      .hint {
+        margin-top: 1.5rem;
+        font-size: 0.72rem;
+        opacity: 0.7;
+      }
+      .hint a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="splash">
+      <div class="name">specpasa</div>
+      <div class="status" id="status">Starting the local server <span class="dot">…</span></div>
+      <div class="error" id="error" hidden></div>
+
+      <form id="server-form">
+        <label for="server-url">Self-hosted server URL</label>
+        <input id="server-url" type="url" placeholder="https://specs.example.com" />
+        <div class="row">
+          <button type="submit" class="primary">Connect</button>
+          <button type="button" id="use-local">Use local server</button>
+        </div>
+      </form>
+
+      <div class="hint" id="hint">
+        Have a shared specpasa server? <a href="#" id="show-form">Connect to it instead</a>
+      </div>
+    </div>
+
+    <script>
+      const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
+      const params = new URLSearchParams(location.search);
+      const form = document.getElementById("server-form");
+      const status = document.getElementById("status");
+      const error = document.getElementById("error");
+      const urlInput = document.getElementById("server-url");
+
+      const showForm = async () => {
+        form.classList.add("visible");
+        document.getElementById("hint").hidden = true;
+        status.hidden = true;
+        try {
+          urlInput.value = (await invoke("get_server_url")) ?? "";
+        } catch {
+          /* dev build without IPC — leave blank */
+        }
+        urlInput.focus();
+      };
+
+      if (params.get("error") === "unreachable") {
+        error.textContent = `Could not reach ${params.get("url") ?? "the server"} — check the URL and your network.`;
+        error.hidden = false;
+        showForm();
+      } else if (params.get("configure") === "1") {
+        showForm();
+      }
+
+      document.getElementById("show-form").addEventListener("click", (e) => {
+        e.preventDefault();
+        showForm();
+      });
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        error.hidden = true;
+        try {
+          await invoke("set_server_url", { url: urlInput.value });
+        } catch (message) {
+          error.textContent = String(message);
+          error.hidden = false;
+        }
+      });
+
+      document.getElementById("use-local").addEventListener("click", async () => {
+        try {
+          await invoke("set_server_url", { url: null });
+        } catch (message) {
+          error.textContent = String(message);
+          error.hidden = false;
+        }
+      });
+    </script>
+  </body>
+</html>

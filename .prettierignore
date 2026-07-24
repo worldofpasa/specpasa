@@ -5,3 +5,7 @@ pnpm-lock.yaml
 packages/db/drizzle/
 .claude/
 packages/db/drizzle-pg/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/icons/
+apps/desktop/src-tauri/resources/server/
