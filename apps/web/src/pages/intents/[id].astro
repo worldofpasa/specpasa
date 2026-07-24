@@ -69,7 +69,7 @@ const statusStamp = (status: string) =>
               >
                 <span class="min-w-0 truncate font-medium">{spec.title}</span>
                 <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
-                  {spec.phase}
+                  {t.phases.label(spec.phase)}
                 </span>
                 <span
                   class:list={[
@@ -98,6 +98,25 @@ const statusStamp = (status: string) =>
         placeholder={t.specs.titlePlaceholder}
         class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
       />
+      <fieldset class="flex flex-col gap-2">
+        <legend class="mb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+          {t.specs.startPhaseLabel}
+        </legend>
+        <label class="flex items-start gap-2 text-sm">
+          <input type="radio" name="startPhase" value="prd" checked class="mt-1 accent-accent" />
+          <span>
+            <span class="font-medium">{t.specs.startPrd}</span>
+            <span class="block text-xs text-neutral-500">{t.specs.startPrdDetail}</span>
+          </span>
+        </label>
+        <label class="flex items-start gap-2 text-sm">
+          <input type="radio" name="startPhase" value="draft" class="mt-1 accent-accent" />
+          <span>
+            <span class="font-medium">{t.specs.startDraft}</span>
+            <span class="block text-xs text-neutral-500">{t.specs.startDraftDetail}</span>
+          </span>
+        </label>
+      </fieldset>
       <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">
         {t.specs.create}
       </button>

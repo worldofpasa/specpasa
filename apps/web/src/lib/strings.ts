@@ -9,7 +9,27 @@ export const APP_NAME = "specpasa";
 /** "Part — Part — specpasa" browser/page titles. */
 export const pageTitle = (...parts: string[]): string => [...parts, APP_NAME].join(" — ");
 
+/**
+ * Display label per spec *phase*. The draft phase renders as "IDEA" so it can
+ * never be confused with the "Draft" *status* stamp shown next to it.
+ */
+const phaseLabel = (phase: string): string =>
+  (({ draft: "IDEA", prd: "PRD", erd: "ERD", tasks: "TASKS" }) as Record<string, string>)[phase] ??
+  phase.toUpperCase();
+
 export const t = {
+  phases: {
+    label: phaseLabel,
+    long: (phase: string) =>
+      (
+        ({
+          draft: "Idea draft",
+          prd: "Product requirements",
+          erd: "Engineering requirements",
+          tasks: "Implementation tasks",
+        }) as Record<string, string>
+      )[phase] ?? phase,
+  },
   ui: {
     close: "Close",
     closeGlyph: "✕",
@@ -43,6 +63,7 @@ export const t = {
     loginHeading: "Log in",
     loginTitle: pageTitle("Log in"),
     loginSubmit: "Log in",
+    localWorkspaceName: "Local Workspace",
   },
   projects: {
     listLabel: "Projects",
@@ -63,10 +84,15 @@ export const t = {
   specs: {
     listLabel: "Specs",
     empty: "No specs yet — start with a blank PRD below.",
-    newHeading: "New spec (starts in the PRD phase)",
+    newHeading: "New spec",
     titlePlaceholder: "Spec title",
     create: "Create spec",
     versionHistory: "Version history",
+    startPhaseLabel: "Starting point",
+    startDraft: "Idea first",
+    startDraftDetail: "Sharpen a rough idea into a PRD with an AI interview",
+    startPrd: "Straight to PRD",
+    startPrdDetail: "Write the requirements document directly",
   },
   editor: {
     blankSpec: "Blank spec",
@@ -132,6 +158,7 @@ export const t = {
     modelPlaceholder: "Model (e.g. llama3.2)",
     baseUrlPlaceholder: "Base URL (default http://localhost:11434)",
     addLocalCli: "Add local CLI",
+    autoAddedName: (command: string) => `${command} CLI`,
     localCliNote: "Runs the CLI on this host — nothing leaves the machine, no API key needed.",
     displayNameLocalCli: "Display name (e.g. Claude CLI)",
     cliCommandLabel: "Command",
@@ -144,11 +171,11 @@ export const t = {
     freeze: "Freeze",
     frozenNote: (when: string) => `Frozen ${when} — this spec is immutable. Fork it to iterate.`,
     freezeNeedsVersion: "Save at least one version before freezing.",
-    startNextPhase: (phase: string) => `Start ${phase.toUpperCase()} phase`,
-    derivedFrom: (phase: string) => `Derived from the frozen ${phase.toUpperCase()} spec`,
-    seedHeading: (title: string, phase: string) => `# ${title} — ${phase.toUpperCase()}`,
+    startNextPhase: (phase: string) => `Start ${phaseLabel(phase)} phase`,
+    derivedFrom: (phase: string) => `Derived from the frozen ${phaseLabel(phase)} spec`,
+    seedHeading: (title: string, phase: string) => `# ${title} — ${phaseLabel(phase)}`,
     seedNote: (phase: string, n: number) =>
-      `> Derived from the frozen ${phase.toUpperCase()} (v${n}). The source document is attached as a reference and fed to AI drafts.`,
+      `> Derived from the frozen ${phaseLabel(phase)} (v${n}). The source document is attached as a reference and fed to AI drafts.`,
     fork: "Fork",
     forkTitle: (title: string) => `${title} (fork)`,
     statusLabel: "Status",
@@ -315,5 +342,37 @@ export const t = {
     viewing: (name: string) => `${name} is viewing`,
     label: "Currently viewing",
     more: (n: number) => `+${n}`,
+  },
+  interview: {
+    heading: "Interview",
+    tagline: "Sharpen this idea with the local claude CLI — nothing leaves this machine.",
+    skillLabel: "Approach",
+    skills: {
+      grilling: "Grill me",
+      grillingDetail: "Relentless questions, one at a time, sharpening the document as you answer",
+      wayfinder: "Wayfinder",
+      wayfinderDetail: "Map the big decisions in a foggy idea, then resolve them one by one",
+    },
+    promptPlaceholder: "Describe the rough idea to kick things off…",
+    start: "Start interview",
+    working: "Interviewing…",
+    cancel: "Stop session",
+    answer: "Answer",
+    otherPlaceholder: "Or type your own answer…",
+    docUpdated: "Document updated",
+    transcript: "Transcript",
+    doneInterview: "Interview finished — the sharpened draft was saved to your working draft.",
+    doneConvert: "Document generated — opening the new spec…",
+    claudeMissing:
+      "Interviews need the claude CLI on this host and a Claude CLI provider configured in settings.",
+    busy: "A session is already running on this spec.",
+    convertHeading: "Generate with AI",
+    convert: (phase: string) => `Generate ${phase} with AI`,
+    convertTagline: (phase: string) =>
+      `The claude CLI turns this frozen document into a first ${phase} version — it may ask a question or two along the way.`,
+    badTicketFormat:
+      "The generated tickets did not match the epics format — nothing was created. Try again.",
+    sessionEnded: "Session ended.",
+    failed: (detail: string) => `Session failed — ${detail}`,
   },
 } as const;
