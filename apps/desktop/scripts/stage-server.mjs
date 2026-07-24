@@ -113,6 +113,20 @@ writeFileSync(
 );
 run("npm install --omit=dev --no-audit --no-fund --install-links", { cwd: serverDir });
 
+// npm installs every @libsql prebuilt whose os/cpu match — including the
+// musl variant on glibc hosts (npm does not reliably honor the libc field).
+// Foreign prebuilds are dead weight in every bundle, and on Linux the musl
+// index.node breaks Tauri's AppImage bundler (linuxdeploy ldd-scans the
+// AppDir and ldd cannot process musl binaries). Keep only the host's variant.
+const libsqlDir = join(serverDir, "node_modules/@libsql");
+const platformKey = `${process.platform}-${process.arch}`;
+for (const entry of readdirSync(libsqlDir)) {
+  if (!/^(darwin|linux|win32)-/.test(entry)) continue;
+  if (entry.startsWith(platformKey) && !entry.endsWith("-musl")) continue;
+  console.error(`[stage] pruning foreign prebuilt @libsql/${entry}`);
+  rmSync(join(libsqlDir, entry), { recursive: true, force: true });
+}
+
 console.error("[stage] copying dist, migrations, and migrate.mjs…");
 cpSync(distDir, join(serverDir, "dist"), { recursive: true });
 // The @specpasa/db package is bundled into dist, so its migration SQL is
