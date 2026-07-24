@@ -2,6 +2,8 @@ import { blocksToMarkdown } from "@specpasa/core";
 import { type AgentRequest } from "./types.js";
 
 const PHASE_GUIDANCE: Record<AgentRequest["phase"], string> = {
+  draft:
+    "You are drafting an idea document: the problem as understood so far, motivation, options considered, and open questions. It is exploratory — capture uncertainty explicitly rather than resolving it prematurely.",
   prd: "You are drafting a Product Requirements Document: vision, personas, user journeys, functional requirements with stable IDs, non-goals, and open questions.",
   erd: "You are drafting an Engineering Requirements Document: architecture, data model, key decisions with trade-offs weighed, and mermaid diagrams where they clarify structure.",
   tasks:

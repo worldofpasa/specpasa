@@ -8,18 +8,24 @@ import { SUPPORTED_CLI_COMMANDS } from "./local-cli.js";
  * from SUPPORTED_CLI_COMMANDS is reported as detected-but-not-usable. */
 const KNOWN_CLIS = ["claude", "codex"] as const;
 
+/** Windows resolves commands through PATHEXT — a bare `claude` on disk is
+ * actually `claude.cmd` or `claude.exe`. Elsewhere the bare name is the file. */
+const COMMAND_SUFFIXES = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+
 export function findExecutableOnPath(
   command: string,
   pathVar: string | undefined = process.env.PATH,
 ): string | null {
   for (const dir of (pathVar ?? "").split(delimiter)) {
     if (!dir) continue;
-    const candidate = join(dir, command);
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // keep scanning
+    for (const suffix of COMMAND_SUFFIXES) {
+      const candidate = join(dir, command + suffix);
+      try {
+        accessSync(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // keep scanning
+      }
     }
   }
   return null;
