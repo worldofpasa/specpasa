@@ -55,6 +55,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
 
+      # linuxdeploy aborts outright when ldd fails on any ELF in the AppDir,
+      # and the staged node server legitimately contains static binaries
+      # (e.g. the agent SDK's bundled claude CLI) where ldd exits 1. Shim ldd
+      # to report "no dependencies" for those — bundle them as-is.
+      - name: Install tolerant ldd shim for linuxdeploy
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/.ldd-shim"
+          printf '%s\n' '#!/bin/bash' \
+            'out=$(/usr/bin/ldd "$@" 2>/dev/null); code=$?' \
+            'if [ $code -ne 0 ]; then exit 0; fi' \
+            'printf "%s\n" "$out"' > "$HOME/.ldd-shim/ldd"
+          chmod +x "$HOME/.ldd-shim/ldd"
+          echo "$HOME/.ldd-shim" >> "$GITHUB_PATH"
+
       - run: pnpm install --frozen-lockfile
 
       # Stages the production web server into src-tauri/resources/server,
