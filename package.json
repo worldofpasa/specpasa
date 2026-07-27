@@ -2,10 +2,10 @@
   "name": "specpasa",
   "version": "0.0.1",
   "private": true,
-  "description": "Self-hosted collaborative spec builder \u2014 Spec Driven Development, built together with AI.",
+  "description": "Self-hosted collaborative spec builder — Spec Driven Development, built together with AI.",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "packageManager": "pnpm@11.8.0",
+  "packageManager": "pnpm@11.17.0",
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=11.0.0"
