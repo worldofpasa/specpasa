@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { actions } from "astro:actions";
 import { marked } from "marked";
 import { blocksToMarkdown, fencedContent, type SpecBlock } from "@specpasa/core";
+import { streamEvents } from "../lib/stream";
 import { t } from "../lib/strings";
 import Mermaid from "./Mermaid";
 
@@ -41,22 +42,6 @@ type StreamEvent =
   | { type: "done"; number: number }
   | { type: "error"; message: string };
 
-async function* streamEvents(response: Response): AsyncIterable<StreamEvent> {
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.trim()) yield JSON.parse(line) as StreamEvent;
-    }
-  }
-}
-
 interface DraftCallbacks {
   onToken: (text: string) => void;
   onError: (message: string) => void;
@@ -77,7 +62,7 @@ async function runDraft(
       callbacks.onError(`Request failed (${response.status}): ${await response.text()}`);
       return;
     }
-    for await (const event of streamEvents(response)) {
+    for await (const event of streamEvents<StreamEvent>(response)) {
       if (event.type === "token") callbacks.onToken(event.text);
       else if (event.type === "error") callbacks.onError(event.message);
       else return callbacks.onDone();

@@ -13,6 +13,8 @@
   "scripts": {
     "dev": "pnpm --filter @specpasa/web dev",
     "build": "pnpm typecheck && pnpm --filter @specpasa/web build",
+    "desktop:dev": "pnpm --filter @specpasa/desktop dev",
+    "desktop:build": "pnpm --filter @specpasa/desktop build",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",

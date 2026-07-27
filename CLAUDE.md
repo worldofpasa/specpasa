@@ -12,6 +12,7 @@ The product docs in `docs/` are the source of truth — read them before changin
 ## Monorepo map
 
 - `apps/web` — Astro 7 app (`@specpasa/web`): Node adapter (default deploy), React islands for interactive UI, Tailwind v4 via `@tailwindcss/vite`
+- `apps/desktop` — Tauri 2 shell (`@specpasa/desktop`): bundles the built web server + an npm-staged runtime tree (`scripts/stage-server.mjs`), spawns it with system Node (≥22) on port 4977 with SQLite in the OS app-data dir, and points the webview at it. Rust side handles enriched-PATH resolution (GUI apps don't inherit the login-shell PATH — needed so the server finds `node` and `claude`), migrations, readiness, and process-group cleanup. A Server menu / splash form can instead point the webview at a self-hosted instance (`settings.json` `server_url` in app-data — Bitwarden-style); local server is skipped while remote. Desktop builds bake `SPECPASA_DESKTOP_BUILD=1`: non-Secure session cookie (WKWebView drops Secure cookies on http://127.0.0.1) and a cwd-relative session dir. Local mode also sets `SPECPASA_LOCAL_AUTOLOGIN=1` at spawn: the middleware signs requests in automatically (existing single user, else a passwordless owner provisioned from the OS username via `lib/provision.ts`) — password auth remains for self-hosted/Docker
 - `packages/core` — `@specpasa/core`: domain types/enums, spec lifecycle state machine (`lifecycle.ts`), ULID helper. Pure, runtime-agnostic — no Node APIs
 - `packages/db` — `@specpasa/db`: Drizzle schema (SQLite/libsql default), migrations in `drizzle/`, `createDb()` client factory
 - `packages/providers` — `@specpasa/providers`: `SpecAgent` interface + AI adapter stubs (local CLI, Ollama, OpenAI-compatible, Anthropic)
@@ -24,6 +25,7 @@ Dependency direction is strictly downward: web → providers/db → core.
 - `pnpm typecheck` / `pnpm lint` / `pnpm test` — vitest tests live in `packages/*/test/`
 - `pnpm db:generate` / `pnpm db:migrate` — Drizzle migrations against `data/specpasa.db` (override with `DATABASE_URL`)
 - `pnpm build` — typecheck + production build
+- `pnpm desktop:dev` — Tauri shell against the astro dev server (start `pnpm dev` first); `pnpm desktop:build` — stage self-contained server + build the .app/.dmg (needs rustup)
 
 ## Conventions
 

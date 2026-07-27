@@ -1,4 +1,4 @@
-import { type AiProviderKind, type SpecBlock } from "@specpasa/core";
+import { type AiProviderKind, type SpecBlock, type SpecPhase } from "@specpasa/core";
 
 /** A reference attached to a spec, serialized for the model's context. */
 export interface AgentContextItem {
@@ -13,7 +13,7 @@ export interface AgentRequest {
   /** Current spec content, if any (blank for a fresh draft). */
   blocks?: SpecBlock[];
   context?: AgentContextItem[];
-  phase: "prd" | "erd" | "tasks";
+  phase: SpecPhase;
 }
 
 export type AgentEvent =

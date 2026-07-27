@@ -1,0 +1,104 @@
+name: Desktop
+
+# Builds the Tauri desktop installers for macOS (Apple Silicon + Intel),
+# Linux, and Windows. Runs on desktop-v* tags (attaching the installers to a
+# GitHub Release) and on manual dispatch (artifacts only).
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Dummy value so the server config validates during the staged web build;
+  # the real secret is generated per-machine by the desktop shell at runtime.
+  SPECPASA_SECRET: ci-only-dummy-secret-0123456789abcdef
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # Apple Silicon
+            name: macos-aarch64
+          - os: macos-15-intel # last Intel macOS runner image
+            name: macos-x86_64
+          - os: ubuntu-22.04 # oldest supported image → widest glibc compat for AppImage/deb
+            name: linux-x86_64
+          - os: windows-latest
+            name: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux webview and bundler dependencies
+        if: runner.os == 'Linux'
+        # libfuse2: linuxdeploy (Tauri's AppImage bundler) is itself an
+        # AppImage and cannot start without FUSE on GitHub runners.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+
+      # linuxdeploy aborts outright when ldd fails on any ELF in the AppDir,
+      # and the staged node server legitimately contains static binaries
+      # (e.g. the agent SDK's bundled claude CLI) where ldd exits 1. Shim ldd
+      # to report "no dependencies" for those — bundle them as-is.
+      - name: Install tolerant ldd shim for linuxdeploy
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/.ldd-shim"
+          printf '%s\n' '#!/bin/bash' \
+            'out=$(/usr/bin/ldd "$@" 2>/dev/null); code=$?' \
+            'if [ $code -ne 0 ]; then exit 0; fi' \
+            'printf "%s\n" "$out"' > "$HOME/.ldd-shim/ldd"
+          chmod +x "$HOME/.ldd-shim/ldd"
+          echo "$HOME/.ldd-shim" >> "$GITHUB_PATH"
+
+      - run: pnpm install --frozen-lockfile
+
+      # Stages the production web server into src-tauri/resources/server,
+      # then runs `tauri build` (bundle targets filtered per platform).
+      - run: pnpm --filter @specpasa/desktop build
+        env:
+          # Belt and braces with libfuse2: run AppImage tooling by
+          # self-extraction instead of FUSE-mounting.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: specpasa-desktop-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: Attach installers to the release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe

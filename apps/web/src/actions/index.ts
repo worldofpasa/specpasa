@@ -15,14 +15,17 @@ import {
   newId,
   nextPhase,
   parseEpicsFromMarkdown,
+  SPEC_START_PHASES,
   SPEC_STATUSES,
 } from "@specpasa/core";
 import { IntegrationError, type ExternalRecord, type TaskExportEpic } from "@specpasa/integrations";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
-import { SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
+import { findExecutableOnPath, SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { specInWorkspace, threadSpecInWorkspace } from "../lib/authz";
 import { getDb, insertSpecVersion, schema, and, desc, eq } from "../lib/db";
+import { deriveNextPhaseSpec, placeholderSeedBlocks } from "../lib/derive";
+import { provisionOwner } from "../lib/provision";
 import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
 import { publishCommentsChanged } from "../lib/realtime";
 import { t } from "../lib/strings";
@@ -247,31 +250,12 @@ export const server = {
       if (existing) {
         throw new ActionError({ code: "FORBIDDEN", message: "Instance is already set up" });
       }
-      const ts = now();
-      const userId = newId();
-      const workspaceId = newId();
-      await db.insert(schema.users).values({
-        id: userId,
-        email: input.email,
+      const { userId } = await provisionOwner({
         name: input.name,
-        password_hash: hashPassword(input.password),
-        created_at: ts,
-        updated_at: ts,
-      });
-      await db.insert(schema.workspaces).values({
-        id: workspaceId,
-        name: input.workspaceName,
-        slug: input.workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-        created_by: userId,
-        created_at: ts,
-        updated_at: ts,
-      });
-      await db.insert(schema.memberships).values({
-        id: newId(),
-        workspace_id: workspaceId,
-        user_id: userId,
-        role: "owner",
-        created_at: ts,
+        email: input.email,
+        passwordHash: hashPassword(input.password),
+        workspaceName: input.workspaceName,
+        cliCommands: SUPPORTED_CLI_COMMANDS.filter((command) => findExecutableOnPath(command)),
       });
       await context.session?.set("userId", userId);
       return { ok: true };
@@ -355,7 +339,11 @@ export const server = {
 
   createSpec: defineAction({
     accept: "form",
-    input: z.object({ intentId: z.string(), title: z.string().min(1) }),
+    input: z.object({
+      intentId: z.string(),
+      title: z.string().min(1),
+      startPhase: z.enum(SPEC_START_PHASES).default("prd"),
+    }),
     handler: async (input, context) => {
       const userId = await requireEditor(context);
       const ts = now();
@@ -364,7 +352,7 @@ export const server = {
         id,
         intent_id: input.intentId,
         title: input.title,
-        phase: "prd",
+        phase: input.startPhase,
         status: "draft",
         created_by: userId,
         created_at: ts,
@@ -551,50 +539,13 @@ export const server = {
         .select()
         .from(schema.spec_versions)
         .where(eq(schema.spec_versions.id, spec.current_version_id!));
-      const ts = now();
-      const specId = newId();
-      const versionId = newId();
-      const seed = [
-        t.lifecycle.seedHeading(spec.title, phase),
-        t.lifecycle.seedNote(spec.phase, frozenVersion?.number ?? 0),
-      ].join("\n\n");
-      await db.insert(schema.specs).values({
-        id: specId,
-        intent_id: spec.intent_id,
-        title: spec.title,
+      return await deriveNextPhaseSpec({
+        spec,
         phase,
-        status: "draft",
-        derived_from_spec_id: spec.id,
-        created_by: userId,
-        created_at: ts,
-        updated_at: ts,
-      });
-      await db.insert(schema.spec_versions).values({
-        id: versionId,
-        spec_id: specId,
-        number: 1,
-        blocks: blocksFromMarkdown(seed),
+        blocks: placeholderSeedBlocks(spec, phase, frozenVersion?.number ?? 0),
         summary: t.lifecycle.derivedFrom(spec.phase),
-        created_by: userId,
-        ai_generated: false,
-        created_at: ts,
+        userId,
       });
-      await db
-        .update(schema.specs)
-        .set({ current_version_id: versionId })
-        .where(eq(schema.specs.id, specId));
-      // The frozen source rides along as a spec reference so AI drafts in the
-      // new phase see it as context (FR-LIFE-4, FR-AI-8).
-      await db.insert(schema.spec_references).values({
-        id: newId(),
-        spec_id: specId,
-        kind: "spec",
-        title: `${spec.title} (${spec.phase.toUpperCase()}, frozen)`,
-        payload: { spec_id: spec.id },
-        created_by: userId,
-        created_at: ts,
-      });
-      return { id: specId };
     },
   }),
 

@@ -29,6 +29,7 @@ pnpm build                  # includes typecheck
 This is a pnpm monorepo; dependencies point strictly downward (web → providers/db → core):
 
 - `apps/web` — Astro 7 app: Node adapter, React islands, Tailwind v4
+- `apps/desktop` — optional Tauri 2 shell around the web app (standalone local server or connect to self-hosted); see [apps/desktop/README.md](apps/desktop/README.md)
 - `packages/core` — domain types, spec lifecycle state machine, ULID helper (pure, no Node APIs)
 - `packages/db` — Drizzle schema (SQLite default, Postgres mirror), migrations, client factory
 - `packages/providers` — `SpecAgent` interface + AI adapters (local CLI, Ollama, OpenAI-compatible, Anthropic)

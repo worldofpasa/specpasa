@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Splash window only — the app itself is served over localhost and gets no Tauri IPC.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

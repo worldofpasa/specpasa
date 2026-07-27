@@ -1,14 +1,16 @@
 ---
 import { actions } from "astro:actions";
-import { canComment, canEdit } from "@specpasa/core";
+import { canAdvancePhase, canComment, canEdit, nextPhase } from "@specpasa/core";
 import Base from "../../../layouts/Base.astro";
 import SpecWorkspace from "../../../islands/SpecWorkspace";
 import CommentsPanel from "../../../islands/CommentsPanel";
+import InterviewPanel from "../../../islands/InterviewPanel";
 import PresenceChips from "../../../islands/PresenceChips";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
 import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
+import { claudeInterviewAvailable } from "../../../lib/claude";
 import { getDb, schema, asc, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
@@ -102,6 +104,25 @@ const versionNumbers = (
     .where(eq(schema.spec_versions.spec_id, spec.id))
     .orderBy(asc(schema.spec_versions.number))
 ).map((row) => row.number);
+
+// Interview panel (draft phase) / AI phase conversion (frozen with a next
+// phase) — both need the local claude CLI plus a Claude CLI provider config.
+const claudeAvailable = canEdit(role) && (await claudeInterviewAvailable(workspace.id));
+const showInterview = claudeAvailable && spec.phase === "draft" && spec.status !== "frozen";
+const phaseAfter = nextPhase(spec.phase);
+const showConvert = claudeAvailable && canAdvancePhase(spec) && phaseAfter !== null;
+const interviewSkills = [
+  {
+    name: "grilling",
+    label: t.interview.skills.grilling,
+    detail: t.interview.skills.grillingDetail,
+  },
+  {
+    name: "wayfinder",
+    label: t.interview.skills.wayfinder,
+    detail: t.interview.skills.wayfinderDetail,
+  },
+];
 ---
 
 <Base title={pageTitle(spec.title)}>
@@ -127,7 +148,9 @@ const versionNumbers = (
           <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
             {t.workspace.titleBlock.phase}
           </span>
-          <span class="block text-sm font-semibold uppercase tracking-wide text-accent">{spec.phase}</span>
+          <span class="block text-sm font-semibold uppercase tracking-wide text-accent"
+            >{t.phases.label(spec.phase)}</span
+          >
         </div>
         <div class="hidden border-r border-line px-4 py-2.5 sm:block">
           <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
@@ -173,6 +196,30 @@ const versionNumbers = (
 
     <div class="flex gap-6">
       <div class="min-w-0 flex-1">
+        {
+          showInterview && (
+            <div class="mb-6">
+              <InterviewPanel
+                client:load
+                specId={spec.id}
+                mode="interview"
+                skills={interviewSkills}
+              />
+            </div>
+          )
+        }
+        {
+          showConvert && phaseAfter && (
+            <div class="mb-6">
+              <InterviewPanel
+                client:load
+                specId={spec.id}
+                mode="convert"
+                nextPhaseLabel={t.phases.label(phaseAfter)}
+              />
+            </div>
+          )
+        }
         <SpecWorkspace
           client:load
           specId={spec.id}

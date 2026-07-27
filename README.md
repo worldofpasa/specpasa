@@ -93,7 +93,39 @@ pnpm db:migrate             # creates data/specpasa.db (SQLite by default)
 pnpm dev                    # http://localhost:4321 — first visit runs admin setup
 ```
 
-`pnpm test`, `pnpm typecheck`, and `pnpm lint` cover the workspace. The repo is a pnpm monorepo: `apps/web` (Astro 7 + React islands), `packages/core` (domain logic), `packages/db` (Drizzle), `packages/providers` (AI adapters).
+`pnpm test`, `pnpm typecheck`, and `pnpm lint` cover the workspace. The repo is a pnpm monorepo: `apps/web` (Astro 7 + React islands), `apps/desktop` (optional Tauri shell — see below), `packages/core` (domain logic), `packages/db` (Drizzle), `packages/providers` (AI adapters).
+
+## Desktop app (optional)
+
+In addition to the browser/self-hosted web app, this repo includes a **native desktop shell** (`apps/desktop`, Tauri 2). It is the same product UI in a window — not a separate codebase — and can run in two modes:
+
+| Mode            | What happens                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Standalone**  | Shell starts a local Node server (bundled web build) + SQLite in OS app-data; auto-login for a single local user |
+| **Self-hosted** | Shell opens your existing deployment URL; no local server; normal login/invites                                  |
+
+### Local desktop setup
+
+Extra requirements on top of the web stack: **Rust / rustup** and [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/). Standalone mode also needs **Node ≥ 22 on PATH** at runtime (Node is not embedded in the installer).
+
+```sh
+pnpm install
+
+# Terminal 1 — web dev server (required for desktop:dev)
+pnpm dev
+
+# Terminal 2 — open the native shell against that server
+pnpm desktop:dev
+```
+
+Package a production build on your machine (macOS example produces `.app` / `.dmg`):
+
+```sh
+pnpm desktop:build
+# → apps/desktop/src-tauri/target/release/bundle/
+```
+
+Prebuilt (unsigned) installers for **macOS, Linux, and Windows** are published on the [GitHub Releases page](https://github.com/worldofpasa/specpasa/releases) — CI builds them from `desktop-v*` tags on a native-runner matrix. End users still need system Node ≥ 22 for standalone mode. Full mode details, Server menu, packaging caveats, and troubleshooting: **[apps/desktop/README.md](apps/desktop/README.md)**.
 
 ## Self-hosting
 
@@ -110,6 +142,8 @@ DATABASE_URL=postgres://specpasa:specpasa@localhost:5432/specpasa pnpm dev
 ```
 
 The Node/Docker deployment is the default target — it's what enables local CLI and Ollama detection. A Cloudflare Workers target (cloud AI only) is planned; see ADR-2 in [docs/architecture.md](docs/architecture.md).
+
+The desktop shell can **connect to this self-hosted instance** via **Server → Connect to Self-Hosted Server…** (or run standalone with its own local database). See [apps/desktop/README.md](apps/desktop/README.md).
 
 ## License
 

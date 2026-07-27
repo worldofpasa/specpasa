@@ -14,6 +14,7 @@ export default tseslint.config(
       "**/*.d.ts",
       "packages/db/drizzle/**",
       ".claude/**",
+      "apps/desktop/src-tauri/**",
     ],
   },
   js.configs.recommended,
