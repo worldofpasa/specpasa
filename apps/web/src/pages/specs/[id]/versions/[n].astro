@@ -47,7 +47,7 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
   <main class="mx-auto max-w-4xl px-6 py-10">
     <header class="flex flex-wrap items-end justify-between gap-4">
       <div class="min-w-0">
-        <nav class="font-mono text-xs text-neutral-500">
+        <nav class="text-xs text-neutral-500">
           <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> /
           <a href={`/specs/${spec.id}/versions`} class="hover:text-accent">{t.versions.crumb}</a> / v{version.number}
         </nav>
@@ -55,7 +55,7 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
           {t.editor.version(version.number)}
           {
             version.ai_generated && (
-              <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
+              <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
                 {t.versions.aiBadge}
               </span>
             )
@@ -81,7 +81,7 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
             return (
               <div class={`relative ${added ? "-mx-3 rounded bg-accent-soft/60 px-3 py-1" : ""}`}>
                 {added && (
-                  <span class="absolute -top-1.5 right-1 rounded-sm bg-accent px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-on-accent">
+                  <span class="absolute -top-1.5 right-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-on-accent">
                     {t.versions.addedBadge}
                   </span>
                 )}
@@ -89,7 +89,7 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
                   <Mermaid client:load source={fencedContent(block.markdown)} />
                 ) : (
                   <div
-                    class="prose prose-neutral max-w-none font-serif prose-headings:font-sans dark:prose-invert"
+                    class="prose prose-neutral max-w-none dark:prose-invert"
                     set:html={marked.parse(block.markdown)}
                   />
                 )}
@@ -100,11 +100,11 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
         {
           diff.removed.map((block) => (
             <div class="relative -mx-3 rounded bg-red-50 px-3 py-1 opacity-70 dark:bg-red-950/30">
-              <span class="absolute -top-1.5 right-1 rounded-sm bg-red-600 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-white">
+              <span class="absolute -top-1.5 right-1 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 {t.versions.removedBadge}
               </span>
               <div
-                class="prose prose-neutral max-w-none font-serif line-through prose-headings:font-sans dark:prose-invert"
+                class="prose prose-neutral max-w-none line-through dark:prose-invert"
                 set:html={marked.parse(block.markdown)}
               />
             </div>
@@ -126,12 +126,12 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
               entry.number === version.number && "bg-accent-soft",
             ]}
           >
-            <span class="font-mono text-[8px] uppercase tracking-[0.14em] text-neutral-400">
+            <span class="text-[10px] font-medium text-neutral-400">
               {t.workspace.titleBlock.rev}
             </span>
             <span
               class:list={[
-                "font-mono text-xs font-semibold",
+                "font-mono text-xs font-medium",
                 entry.number === version.number ? "text-accent" : "text-neutral-500",
               ]}
             >

@@ -2,15 +2,16 @@
 @plugin "@tailwindcss/typography";
 
 /* Self-hosted fonts (Fontsource, open-license) — no CDN requests. */
-@import "@fontsource-variable/albert-sans";
-@import "@fontsource-variable/newsreader/opsz.css";
-@import "@fontsource-variable/newsreader/opsz-italic.css";
+@import "@fontsource-variable/inter";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "@fontsource/ibm-plex-mono/600.css";
 
 /*
- * "The Study" design system (design epic #11).
+ * "Worksurface" design system — the enterprise successor to "The Study"
+ * (design epic #11). Optimized for long-session editing: one legible UI
+ * face (Inter) at regular case, cool neutral surfaces, a single restrained
+ * blue accent, and mono reserved for code, IDs, and version numbers.
  *
  * Dark mode is driven by data-theme on <html>, stamped before paint by the
  * inline script in Base.astro (localStorage override, OS preference default).
@@ -19,34 +20,32 @@
 
 /* Theme-switching semantic tokens: one class works in both themes. */
 :root {
-  --th-paper: #f2f1ec;
-  --th-sheet: #fcfbf8;
-  --th-ink: #282318;
-  --th-line: #e1ddd2;
-  --th-accent: #2a6b58;
-  --th-accent-soft: #e4ece6;
-  --th-on-accent: #fcfbf8;
-  --th-review: #b07c1f;
-  --th-review-soft: #f3e8cf;
-  --th-frozen: #5e7c8a;
-  --th-frozen-soft: #e3e9ec;
-  --th-clay: #a65a41;
-  --th-grid: rgba(42, 107, 88, 0.05);
+  --th-paper: #f4f5f7;
+  --th-sheet: #ffffff;
+  --th-ink: #1f2329;
+  --th-line: #e2e5ea;
+  --th-accent: #2563eb;
+  --th-accent-soft: #e8effd;
+  --th-on-accent: #ffffff;
+  --th-review: #9a6700;
+  --th-review-soft: #faf0d3;
+  --th-frozen: #57687d;
+  --th-frozen-soft: #e8edf3;
+  --th-clay: #b0563c;
 }
 :root[data-theme="dark"] {
-  --th-paper: #1c1a17;
-  --th-sheet: #242120;
-  --th-ink: #eae4d8;
-  --th-line: #37332c;
-  --th-accent: #63b394;
-  --th-accent-soft: #27332c;
-  --th-on-accent: #1c1a17;
-  --th-review: #d6a144;
-  --th-review-soft: #3a311c;
-  --th-frozen: #8fa9b5;
-  --th-frozen-soft: #283136;
-  --th-clay: #c97f63;
-  --th-grid: rgba(99, 179, 148, 0.055);
+  --th-paper: #12161b;
+  --th-sheet: #1a2027;
+  --th-ink: #e3e7ec;
+  --th-line: #2c343e;
+  --th-accent: #7aa5f8;
+  --th-accent-soft: #1e2c47;
+  --th-on-accent: #10151c;
+  --th-review: #d4a72c;
+  --th-review-soft: #372c12;
+  --th-frozen: #93a7bc;
+  --th-frozen-soft: #26303c;
+  --th-clay: #cd7f66;
 }
 
 @theme inline {
@@ -65,34 +64,26 @@
 }
 
 @theme {
-  /* Type roles: sans chrome, serif document body, mono for the system's voice
-     (labels, IDs, stamps). */
-  --font-sans: "Albert Sans Variable", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Newsreader Variable", "Iowan Old Style", Charter, Georgia, serif;
+  /* One UI face for chrome and documents alike; mono is the exception voice
+     for code, raw markdown, and version identifiers. */
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Warm neutral ramp (paper→ink). Existing neutral-* utilities pick these up,
-     so every screen sits on the Study's warm ground without a class sweep.
-     `white` maps to the sheet tone — cards read as paper, not glare. */
-  --color-white: #fcfbf8;
-  --color-neutral-50: #f7f5f0;
-  --color-neutral-100: #efede6;
-  --color-neutral-200: #e1ddd2;
-  --color-neutral-300: #d2ccbe;
-  --color-neutral-400: #a69d8b;
-  --color-neutral-500: #79715f;
-  --color-neutral-600: #5d564a;
-  --color-neutral-700: #454037;
-  --color-neutral-800: #37332c;
-  --color-neutral-900: #262320;
-  --color-neutral-950: #1c1a17;
-}
-
-/* Faint viridian drafting grid for the workspace ground (Drafting Room DNA). */
-@utility bg-drafting-grid {
-  background-image:
-    repeating-linear-gradient(0deg, var(--th-grid) 0 1px, transparent 1px 18px),
-    repeating-linear-gradient(90deg, var(--th-grid) 0 1px, transparent 1px 18px);
+  /* Cool neutral ramp (paper→ink). Existing neutral-* utilities pick these
+     up, so every screen sits on the same functional gray ground without a
+     class sweep. `white` stays true white — sheets read as clean surfaces. */
+  --color-white: #ffffff;
+  --color-neutral-50: #f7f8fa;
+  --color-neutral-100: #eff1f4;
+  --color-neutral-200: #e2e5ea;
+  --color-neutral-300: #cfd4db;
+  --color-neutral-400: #99a1ac;
+  --color-neutral-500: #6b7380;
+  --color-neutral-600: #4f5764;
+  --color-neutral-700: #3a414c;
+  --color-neutral-800: #2c343e;
+  --color-neutral-900: #1f242c;
+  --color-neutral-950: #12161b;
 }
 
 /* Ask-AI composer pop (#31) — mirrors the panel's centered translate. */

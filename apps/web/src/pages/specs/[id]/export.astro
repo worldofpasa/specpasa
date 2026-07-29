@@ -84,17 +84,17 @@ const exportRecords = integration
 
 <Base title={t.export.title(spec.title)}>
   <main class="mx-auto max-w-4xl px-6 py-10">
-    <nav class="font-mono text-xs text-neutral-500">
+    <nav class="text-xs text-neutral-500">
       <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> / {t.export.crumb}
     </nav>
     <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold tracking-tight">
       {t.export.heading}
-      <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
+      <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
         {t.phases.label(spec.phase)}
       </span>
       <span
         class:list={[
-          "rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em]",
+          "rounded border px-1.5 py-0.5 text-[11px] font-medium",
           spec.status === "in_review" && "border-review text-review",
           spec.status === "frozen" && "border-frozen text-frozen",
           spec.status === "draft" && "border-line text-neutral-500",
@@ -132,7 +132,7 @@ const exportRecords = integration
     {
       integration && (
         <section class="mt-6 rounded border border-line bg-sheet p-4">
-          <h2 class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+          <h2 class="text-xs font-semibold text-neutral-500">
             {t.export.docHeading}
           </h2>
           <p class="mt-1 text-xs text-neutral-500">{t.export.docExplainer(repoLabel)}</p>
@@ -152,7 +152,7 @@ const exportRecords = integration
     {
       integration && isTasks && (
         <section class="mt-6 rounded border border-line bg-sheet p-4">
-          <h2 class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+          <h2 class="text-xs font-semibold text-neutral-500">
             {t.export.tasksHeading}
           </h2>
           <p class="mt-1 text-xs text-neutral-500">{t.export.tasksExplainer}</p>
@@ -209,7 +209,7 @@ const exportRecords = integration
 
     <section class="mt-6 rounded border border-line bg-sheet">
       <h2
-        class="border-b border-line px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
       >
         {t.export.exportedHeading}
       </h2>
@@ -218,7 +218,7 @@ const exportRecords = integration
         {
           exportRecords.map(({ record, version }) => (
             <li class="flex items-center gap-3 px-4 py-2.5 text-sm">
-              <span class="rounded-sm border border-line px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
                 {record.external_kind === "document" ? t.export.exportedDoc : t.export.exportedIssue}
               </span>
               {record.external_url ? (
@@ -228,7 +228,7 @@ const exportRecords = integration
               ) : (
                 <span>{record.external_id}</span>
               )}
-              <span class="ml-auto shrink-0 font-mono text-[10px] text-neutral-400">
+              <span class="ml-auto shrink-0 text-xs text-neutral-400">
                 v{version.number} · {t.export.lastExported(new Date(record.exported_at).toLocaleString())}
               </span>
             </li>

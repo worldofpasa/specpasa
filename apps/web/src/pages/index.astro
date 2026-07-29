@@ -22,7 +22,7 @@ if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`
   <main class="mx-auto max-w-4xl px-6 py-10">
     <header class="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
+        <p class="text-xs font-medium text-neutral-500">
           {t.nav.projects}
         </p>
         <h1 class="mt-1 text-2xl font-bold tracking-tight">{workspace.name}</h1>
@@ -37,7 +37,7 @@ if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`
 
     <section class="mt-6 rounded border border-line bg-sheet">
       <h2
-        class="border-b border-line px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
       >
         {t.projects.listLabel}
       </h2>
@@ -53,7 +53,7 @@ if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`
                 {project.description && (
                   <span class="min-w-0 truncate text-sm text-neutral-500">{project.description}</span>
                 )}
-                <span class="ml-auto font-mono text-xs text-neutral-400">→</span>
+                <span class="ml-auto text-xs text-neutral-400">→</span>
               </a>
             </li>
           ))

@@ -28,13 +28,13 @@ const filePayload = (reference: (typeof references)[number]) =>
 
 <section class="rounded border border-line bg-sheet">
   <h2
-    class="flex items-center justify-between border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+    class="flex items-center justify-between border-b border-line px-3 py-2 text-xs font-semibold text-neutral-500"
   >
     {t.references.heading}
     <button
       type="button"
       data-modal-open="add-reference-modal"
-      class="rounded px-1.5 py-0.5 font-sans text-[11px] font-semibold normal-case tracking-normal text-accent hover:bg-accent-soft"
+      class="rounded px-1.5 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent-soft"
     >
       {t.references.addButton}
     </button>
@@ -48,7 +48,7 @@ const filePayload = (reference: (typeof references)[number]) =>
           <li class="group flex items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
             <span
               class:list={[
-                "flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[8px] font-bold",
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded text-[9px] font-semibold",
                 tileStyles[reference.kind] ?? tileStyles.url,
               ]}
             >
@@ -76,7 +76,7 @@ const filePayload = (reference: (typeof references)[number]) =>
             ) : (
               <span class="min-w-0 flex-1 truncate">{reference.title}</span>
             )}
-            <span class="font-mono text-[9px] uppercase tracking-[0.08em] text-neutral-400">
+            <span class="text-[11px] text-neutral-400">
               {t.references.kindShort(reference.kind)}
             </span>
             <form method="POST" action={actions.deleteReference}>
@@ -103,7 +103,7 @@ const filePayload = (reference: (typeof references)[number]) =>
   >
     <input type="hidden" name="specId" value={specId} />
     <label class="flex flex-col gap-1 text-xs">
-      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+      <span class="text-xs font-medium text-neutral-500">
         {t.references.kindLabel}
       </span>
       <select name="kind" data-ref-kind class="rounded border border-line bg-transparent px-2 py-1.5 text-sm">
@@ -114,7 +114,7 @@ const filePayload = (reference: (typeof references)[number]) =>
       </select>
     </label>
     <label class="flex flex-col gap-1 text-xs">
-      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+      <span class="text-xs font-medium text-neutral-500">
         {t.references.titlePlaceholder}
       </span>
       <input
@@ -125,7 +125,7 @@ const filePayload = (reference: (typeof references)[number]) =>
       />
     </label>
     <label class="flex flex-col gap-1 text-xs" data-ref-target-row>
-      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500" data-ref-target-label>
+      <span class="text-xs font-medium text-neutral-500" data-ref-target-label>
         {t.references.kindUrl}
       </span>
       <input
@@ -139,7 +139,7 @@ const filePayload = (reference: (typeof references)[number]) =>
       />
     </label>
     <label class="hidden flex-col gap-1 text-xs" data-ref-file-row>
-      <span class="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+      <span class="text-xs font-medium text-neutral-500">
         {t.references.fileLabel}
       </span>
       <input

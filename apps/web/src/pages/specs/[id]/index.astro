@@ -128,37 +128,35 @@ const interviewSkills = [
 <Base title={pageTitle(spec.title)}>
   <main class="mx-auto max-w-[110rem] px-6 py-6">
     {/* Title block — the spec's engineering-drawing header (The Study, #14). */}
-    <header class="mb-6 overflow-hidden rounded border border-line border-b-[1.5px] border-b-ink bg-sheet">
+    <header class="mb-6 overflow-hidden rounded-lg border border-line bg-sheet shadow-sm">
       <div class="flex flex-wrap items-stretch">
         <div class="min-w-0 flex-1 basis-56 px-4 py-2.5 sm:border-r sm:border-line">
-          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+          <span class="block text-[11px] font-medium text-neutral-500">
             {t.workspace.titleBlock.spec}
           </span>
-          <h1 class="truncate text-lg font-bold leading-tight">{spec.title}</h1>
+          <h1 class="truncate text-lg font-semibold leading-tight">{spec.title}</h1>
         </div>
         <div class="hidden max-w-52 border-r border-line px-4 py-2.5 lg:block">
-          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+          <span class="block text-[11px] font-medium text-neutral-500">
             {t.workspace.titleBlock.project}
           </span>
-          <a href={`/intents/${intent!.id}`} class="block truncate text-sm font-semibold hover:text-accent">
+          <a href={`/intents/${intent!.id}`} class="block truncate text-sm font-medium hover:text-accent">
             {intent!.title}
           </a>
         </div>
         <div class="hidden border-r border-line px-4 py-2.5 sm:block">
-          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+          <span class="block text-[11px] font-medium text-neutral-500">
             {t.workspace.titleBlock.phase}
           </span>
-          <span class="block text-sm font-semibold uppercase tracking-wide text-accent"
-            >{t.phases.label(spec.phase)}</span
-          >
+          <span class="block text-sm font-medium text-accent">{t.phases.label(spec.phase)}</span>
         </div>
         <div class="hidden border-r border-line px-4 py-2.5 sm:block">
-          <span class="block font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
+          <span class="block text-[11px] font-medium text-neutral-500">
             {t.workspace.titleBlock.rev}
           </span>
           <a
             href={`/specs/${spec.id}/versions`}
-            class="block font-mono text-sm font-semibold hover:text-accent"
+            class="block font-mono text-sm font-medium hover:text-accent"
             title={t.specs.versionHistory}
           >
             v{current?.number ?? 0}
@@ -167,7 +165,7 @@ const interviewSkills = [
         <div class="ml-auto flex flex-wrap items-center gap-3 px-4 py-2">
           <span
             class:list={[
-              "rounded-sm border-[1.5px] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em]",
+              "rounded border px-2 py-0.5 text-[11px] font-medium",
               spec.status === "in_review" && "border-review text-review",
               spec.status === "frozen" && "border-frozen text-frozen",
               spec.status === "draft" && "border-line text-neutral-500",
@@ -182,7 +180,7 @@ const interviewSkills = [
             (spec.phase === "tasks" || spec.status === "frozen") && (
               <a
                 href={`/specs/${spec.id}/export`}
-                class="font-mono text-xs text-neutral-500 hover:text-accent"
+                class="text-xs font-medium text-neutral-500 hover:text-accent"
               >
                 {t.export.heading}
               </a>

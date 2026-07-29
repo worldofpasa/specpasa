@@ -53,7 +53,7 @@ function ThreadCard({
     >
       {thread.quote && (
         <p
-          className={`mb-1.5 border-l-[1.5px] pl-2 font-serif text-xs italic text-neutral-500 ${thread.resolved ? "border-line" : "border-review"}`}
+          className={`mb-1.5 border-l-2 pl-2 text-xs text-neutral-500 ${thread.resolved ? "border-line" : "border-review"}`}
         >
           {thread.quote}
         </p>
@@ -62,12 +62,12 @@ function ThreadCard({
         <div key={comment.id} className="mb-2">
           <p className="flex items-center gap-1.5 text-xs font-semibold">
             <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[7px] font-bold text-on-accent ${presenceHue(comment.author)}`}
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-semibold text-on-accent ${presenceHue(comment.author)}`}
             >
               {initials(comment.author)}
             </span>
             <span className="truncate">{comment.author}</span>
-            <span className="shrink-0 font-mono text-[9px] font-normal text-neutral-400">
+            <span className="shrink-0 text-[10px] font-normal text-neutral-400">
               {timeAgo(comment.createdAt)}
             </span>
           </p>

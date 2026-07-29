@@ -45,14 +45,14 @@ export default function PresenceChips({ selfId }: Props) {
           key={viewer.userId}
           title={t.presence.viewing(viewer.name)}
           aria-label={t.presence.viewing(viewer.name)}
-          className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-sheet font-mono text-[10px] font-semibold text-on-accent ${index > 0 ? "-ml-1.5" : ""} ${presenceHue(viewer.name)} ${viewer.userId === selfId ? "ring-2 ring-accent ring-offset-1 ring-offset-sheet" : ""}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-sheet text-[10px] font-semibold text-on-accent ${index > 0 ? "-ml-1.5" : ""} ${presenceHue(viewer.name)} ${viewer.userId === selfId ? "ring-2 ring-accent ring-offset-1 ring-offset-sheet" : ""}`}
         >
           {initials(viewer.name)}
         </span>
       ))}
       {overflow > 0 && (
         <span
-          className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper font-mono text-[10px] text-neutral-500"
+          className="-ml-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-paper text-[10px] text-neutral-500"
           title={t.presence.label}
         >
           {t.presence.more(overflow)}
