@@ -15,6 +15,7 @@ import {
   REFERENCE_KINDS,
   SPEC_PHASES,
   SPEC_STATUSES,
+  TEMPLATE_KINDS,
   type SpecBlock,
 } from "@specpasa/core";
 
@@ -179,6 +180,26 @@ export const specs = pgTable(
     updated_at: updatedAt(),
   },
   (t) => [index("specs_intent_idx").on(t.intent_id)],
+);
+
+export const spec_templates = pgTable(
+  "spec_templates",
+  {
+    id: id(),
+    workspace_id: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    kind: text("kind", { enum: TEMPLATE_KINDS }).notNull(),
+    name: text("name").notNull(),
+    content: text("content").notNull(),
+    is_default: boolean("is_default").notNull().default(false),
+    created_by: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    created_at: createdAt(),
+    updated_at: updatedAt(),
+  },
+  (t) => [index("spec_templates_workspace_kind_idx").on(t.workspace_id, t.kind)],
 );
 
 export const spec_versions = pgTable(

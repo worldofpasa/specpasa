@@ -5,6 +5,11 @@ export type SpecPhase = (typeof SPEC_PHASES)[number];
 export const SPEC_START_PHASES = ["draft", "prd"] as const;
 export type SpecStartPhase = (typeof SPEC_START_PHASES)[number];
 
+/** Document kinds a template can seed: the three phases plus the per-ticket
+ * body used inside a tasks document and by exports. */
+export const TEMPLATE_KINDS = ["prd", "erd", "tasks", "ticket"] as const;
+export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
+
 export const SPEC_STATUSES = ["draft", "in_review", "frozen"] as const;
 export type SpecStatus = (typeof SPEC_STATUSES)[number];
 

@@ -17,6 +17,14 @@ interface ReferenceOption {
   kind: string;
 }
 
+interface TemplateChoice {
+  id: string;
+  name: string;
+  /** Full editor seed for this template (heading, provenance note, body). */
+  seed: string;
+  isDefault: boolean;
+}
+
 interface Props {
   specId: string;
   versionNumber: number;
@@ -35,6 +43,9 @@ interface Props {
   commentsEnabled: boolean;
   /** Server-rendered attachments section (Astro named slot). */
   attachments?: ReactNode;
+  /** Template options while the document has no versions yet — the default
+   * seeds the editor and the switcher swaps between unedited templates. */
+  templates?: TemplateChoice[];
 }
 
 type StreamEvent =
@@ -556,6 +567,7 @@ interface ToolbarProps {
   draftState: "clean" | "dirty" | "saved";
   setMode: (mode: "reading" | "edit") => void;
   onSave: () => void;
+  templateSwitcher?: ReactNode;
 }
 
 function WorkspaceToolbar({
@@ -568,12 +580,14 @@ function WorkspaceToolbar({
   draftState,
   setMode,
   onSave,
+  templateSwitcher,
 }: ToolbarProps) {
   return (
     <div className="mb-3 flex items-center gap-3 text-sm">
       <span className="font-semibold">
         {versionNumber === 0 ? t.editor.blankSpec : t.editor.version(versionNumber)}
       </span>
+      {templateSwitcher}
       {draftState === "dirty" && <span className="text-xs text-review">{t.editor.unsaved}</span>}
       {draftState === "saved" && dirty && (
         <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-400">
@@ -742,8 +756,60 @@ function initialMode(props: Props): "reading" | "edit" {
   return startInEdit && canWrite(props.frozen, props.canEditDoc) ? "edit" : "reading";
 }
 
-function seededMarkdown(draft: Props["draft"], versionMarkdown: string): string {
-  return draft?.markdown ?? versionMarkdown;
+/** A blank document opens on the default template's seed — never persisted
+ * until the user edits or saves, so it costs nothing to walk away from. */
+function seededMarkdown(
+  draft: Props["draft"],
+  versionMarkdown: string,
+  templates?: TemplateChoice[],
+): string {
+  if (draft) return draft.markdown;
+  if (versionMarkdown) return versionMarkdown;
+  return templates?.find((template) => template.isDefault)?.seed ?? "";
+}
+
+/**
+ * Templates may only be switched while the document is still an unedited
+ * template (FR: no switching once content is written or comments exist —
+ * both imply versions, which hide the switcher entirely).
+ */
+function TemplateSwitcher({
+  templates,
+  markdown,
+  setMarkdown,
+}: {
+  templates: TemplateChoice[];
+  markdown: string;
+  setMarkdown: (value: string) => void;
+}) {
+  const current = templates.find((template) => template.seed === markdown);
+  const pristine = Boolean(current) || markdown.trim() === "";
+  return (
+    <label
+      className="flex items-center gap-2 text-xs text-neutral-500"
+      title={pristine ? undefined : t.templates.switcherLocked}
+    >
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em]">
+        {t.templates.switcherLabel}
+      </span>
+      <select
+        value={current?.id ?? ""}
+        disabled={!pristine}
+        onChange={(e) => {
+          const next = templates.find((template) => template.id === e.target.value);
+          if (next) setMarkdown(next.seed);
+        }}
+        className="rounded border border-line bg-transparent px-2 py-1 text-xs disabled:opacity-40"
+      >
+        {!current && <option value="" />}
+        {templates.map((template) => (
+          <option key={template.id} value={template.id}>
+            {template.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 export default function SpecWorkspace(props: Props) {
@@ -759,10 +825,11 @@ export default function SpecWorkspace(props: Props) {
     canEditDoc,
     commentsEnabled,
     attachments,
+    templates,
   } = props;
   const [mode, setMode] = useState<"reading" | "edit">(initialMode(props));
   const initialMarkdown = useMemo(() => blocksToMarkdown(blocks), [blocks]);
-  const [markdown, setMarkdown] = useState(seededMarkdown(draft, initialMarkdown));
+  const [markdown, setMarkdown] = useState(seededMarkdown(draft, initialMarkdown, templates));
   const [leftOpen, setLeftOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -771,7 +838,7 @@ export default function SpecWorkspace(props: Props) {
     draft ? "saved" : "clean",
   );
   const [restoredDraft, setRestoredDraft] = useState(Boolean(draft));
-  const lastSyncedRef = useRef(seededMarkdown(draft, initialMarkdown));
+  const lastSyncedRef = useRef(seededMarkdown(draft, initialMarkdown, templates));
   const toc = useMemo(() => tocFromBlocks(blocks), [blocks]);
   const dirty = markdown !== initialMarkdown;
 
@@ -785,8 +852,9 @@ export default function SpecWorkspace(props: Props) {
 
   async function discardDraft() {
     await actions.discardDraft({ specId });
-    lastSyncedRef.current = initialMarkdown;
-    setMarkdown(initialMarkdown);
+    const reset = seededMarkdown(null, initialMarkdown, templates);
+    lastSyncedRef.current = reset;
+    setMarkdown(reset);
     setDraftState("clean");
     setRestoredDraft(false);
   }
@@ -828,6 +896,15 @@ export default function SpecWorkspace(props: Props) {
           draftState={draftState}
           setMode={setMode}
           onSave={save}
+          templateSwitcher={
+            versionNumber === 0 && !reading && templates && templates.length > 0 ? (
+              <TemplateSwitcher
+                templates={templates}
+                markdown={markdown}
+                setMarkdown={setMarkdown}
+              />
+            ) : undefined
+          }
         />
 
         {reading ? (

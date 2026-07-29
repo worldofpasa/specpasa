@@ -11,7 +11,9 @@ import SpecReferences from "../../../components/SpecReferences.astro";
 import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
 import { claudeInterviewAvailable } from "../../../lib/claude";
+import { listTemplates } from "../../../lib/templates";
 import { findExecutableOnPath } from "@specpasa/providers/node";
+import { type TemplateKind } from "@specpasa/core";
 import { getDb, schema, asc, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
@@ -105,6 +107,38 @@ const versionNumbers = (
     .where(eq(schema.spec_versions.spec_id, spec.id))
     .orderBy(asc(schema.spec_versions.number))
 ).map((row) => row.number);
+
+// Template options for a document with no versions yet: each option carries
+// the full editor seed (title heading, provenance note for derived specs,
+// then the template body). Byte-identical to what advancePhase writes into
+// the draft buffer, so the switcher can recognize an unedited template.
+let templateOptions: { id: string; name: string; seed: string; isDefault: boolean }[] = [];
+if (canEdit(role) && !current && spec.status !== "frozen" && spec.phase !== "draft") {
+  let seedPrefix = t.lifecycle.seedHeading(spec.title, spec.phase);
+  if (spec.derived_from_spec_id) {
+    const [source] = await db
+      .select()
+      .from(schema.specs)
+      .where(eq(schema.specs.id, spec.derived_from_spec_id));
+    const [sourceVersion] = source?.current_version_id
+      ? await db
+          .select({ number: schema.spec_versions.number })
+          .from(schema.spec_versions)
+          .where(eq(schema.spec_versions.id, source.current_version_id))
+      : [];
+    if (source) {
+      seedPrefix += `\n\n${t.lifecycle.seedNote(source.phase, sourceVersion?.number ?? 0)}`;
+    }
+  }
+  templateOptions = (await listTemplates(workspace.id, spec.phase as TemplateKind)).map(
+    (option) => ({
+      id: option.id,
+      name: option.name,
+      seed: `${seedPrefix}\n\n${option.content}`,
+      isDefault: option.isDefault,
+    }),
+  );
+}
 
 // Interview panel (draft phase) / AI phase conversion (frozen with a next
 // phase) — both need the local claude CLI plus a Claude CLI provider config.
@@ -264,6 +298,7 @@ const interviewSkills = [
           draft={draft}
           canEditDoc={canEdit(role)}
           commentsEnabled={canComment(role)}
+          templates={templateOptions}
         >
           <div slot="attachments" class="flex flex-col gap-4">
             <SpecReferences specId={spec.id} />

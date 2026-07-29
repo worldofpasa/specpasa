@@ -38,6 +38,7 @@ export const t = {
   nav: {
     projects: "Projects",
     providers: "AI Providers",
+    templates: "Templates",
     members: "Members",
     logout: "Log out",
     theme: {
@@ -99,7 +100,7 @@ export const t = {
     version: (n: number) => `Version ${n}`,
     unsaved: "unsaved changes",
     draftSaved: "Draft saved",
-    draftRestored: "Restored your unsaved draft — it isn't a version yet.",
+    draftRestored: "Working draft — not saved as a version yet.",
     discardDraft: "Discard draft",
     edit: "Edit",
     preview: "Preview",
@@ -147,7 +148,7 @@ export const t = {
     detectedItem: (name: string, detail: string) => `✓ ${name} — ${detail}`,
     enableDetected: "Enable",
     nothingDetected:
-      "No local AI backends detected — looked for Ollama on localhost:11434 and the claude/codex CLIs on PATH.",
+      "No local AI backends detected — looked for Ollama on localhost:11434 and the claude, codex, cursor-agent, and grok CLIs on PATH.",
     empty: "No providers configured yet.",
     keyStored: "key stored (encrypted)",
     remove: "Remove",
@@ -177,43 +178,6 @@ export const t = {
     seedHeading: (title: string, phase: string) => `# ${title} — ${phaseLabel(phase)}`,
     seedNote: (phase: string, n: number) =>
       `> Derived from the frozen ${phaseLabel(phase)} (v${n}). The source document is attached as a reference and fed to AI drafts. Replace the starter sections below with your own content.`,
-    /** Starter sections the manual (non-AI) advance path seeds the new phase
-     * with — markdown chunks, one heading + guidance line per section. */
-    seedSections: (phase: string): string[] =>
-      (
-        (
-          ({
-            prd: [
-              ["Problem", "What are we solving, for whom, and why now?"],
-              ["Goals", "The outcomes this must achieve — measurable where possible."],
-              ["Non-goals", "What is deliberately out of scope."],
-              ["Requirements", "The functional requirements, one per block, with stable IDs."],
-              ["Open questions", "Unresolved decisions to settle before freezing this PRD."],
-            ],
-            erd: [
-              [
-                "Overview",
-                "How the system meets the frozen requirements — the architecture at a glance.",
-              ],
-              ["Data model", "Entities, fields, and relationships — one subsection per entity."],
-              ["Interfaces", "APIs, events, and integration points between components."],
-              [
-                "Non-functional requirements",
-                "Performance, security, reliability, and operational constraints.",
-              ],
-              ["Open questions", "Unresolved decisions to settle before freezing this ERD."],
-            ],
-            tasks: [
-              ["Milestones", "The delivery order — what ships first and what it unblocks."],
-              [
-                "Task breakdown",
-                "Concrete implementation tasks, one per block, small enough to estimate.",
-              ],
-              ["Open questions", "Anything still blocking a task from being actionable."],
-            ],
-          }) as Record<string, [string, string][]>
-        )[phase] ?? []
-      ).map(([heading, hint]) => `## ${heading}\n\n_${hint}_`),
     fork: "Fork",
     forkTitle: (title: string) => `${title} (fork)`,
     statusLabel: "Status",
@@ -226,6 +190,86 @@ export const t = {
     /** Client-side template for the live count (SpecLifecycle inline script). */
     openThreadsWarningTemplate: "{n} comment threads are still open.",
     freezeConfirmLabel: "Freeze anyway",
+  },
+  templates: {
+    heading: "Templates",
+    title: pageTitle("Templates"),
+    tagline:
+      "Document templates per phase. The default seeds new blank documents, and AI generation follows it as structure guidance.",
+    kindLabel: (kind: string) => (kind === "ticket" ? "TICKET" : phaseLabel(kind)),
+    kindDetail: (kind: string) =>
+      (
+        ({
+          prd: "Seeds a blank PRD",
+          erd: "Seeds a blank ERD and guides AI conversion",
+          tasks: "Seeds the tickets document and guides AI conversion",
+          ticket: "The body structure of each individual ticket",
+        }) as Record<string, string>
+      )[kind] ?? kind,
+    builtinName: (kind: string) => `Standard ${kind === "ticket" ? "Ticket" : phaseLabel(kind)}`,
+    builtinBadge: "Built-in",
+    defaultBadge: "Default",
+    makeDefault: "Make default",
+    newTemplate: "+ New template",
+    edit: "Edit",
+    remove: "Remove",
+    save: "Save template",
+    namePlaceholder: "Template name",
+    contentLabel: "Template content (markdown)",
+    importLabel: "…or import a .md file (replaces the content above)",
+    newModalTitle: (kind: string) =>
+      `New ${kind === "ticket" ? "Ticket" : phaseLabel(kind)} template`,
+    editModalTitle: (name: string) => `Edit ${name}`,
+    newContentNote:
+      "Prefilled with the built-in standard — edit it into your own, or import a file below.",
+    /** Built-in standard sections per template kind — heading + guidance line. */
+    builtinSections: (kind: string): [string, string][] =>
+      (
+        ({
+          prd: [
+            ["Problem", "What are we solving, for whom, and why now?"],
+            ["Goals", "The outcomes this must achieve — measurable where possible."],
+            ["Non-goals", "What is deliberately out of scope."],
+            ["Requirements", "The functional requirements, one per block, with stable IDs."],
+            ["Open questions", "Unresolved decisions to settle before freezing this PRD."],
+          ],
+          erd: [
+            [
+              "Overview",
+              "How the system meets the frozen requirements — the architecture at a glance.",
+            ],
+            ["Data model", "Entities, fields, and relationships — one subsection per entity."],
+            ["Interfaces", "APIs, events, and integration points between components."],
+            [
+              "Non-functional requirements",
+              "Performance, security, reliability, and operational constraints.",
+            ],
+            ["Open questions", "Unresolved decisions to settle before freezing this ERD."],
+          ],
+          tasks: [
+            ["Milestones", "The delivery order — what ships first and what it unblocks."],
+            [
+              "Task breakdown",
+              "Epics as ## headings, each with a checklist of concrete, estimable tickets.",
+            ],
+            ["Open questions", "Anything still blocking a ticket from being actionable."],
+          ],
+          ticket: [
+            ["Summary", "One sentence on what this ticket delivers."],
+            ["Context", "Why this is needed — link the ERD section it implements."],
+            ["Acceptance criteria", "Checkable statements that mean this ticket is done."],
+          ],
+        }) as Record<string, [string, string][]>
+      )[kind] ?? [],
+    emptyContent: "A template needs content — write some markdown or import a file.",
+    switcherLabel: "Template",
+    switcherLocked:
+      "Templates can only be switched while the document is an unedited template — content is already written.",
+    appliedSummary: (name: string) => `Applied template: ${name}`,
+    conversionGuidance: (templateMarkdown: string) =>
+      `Structure the generated document following this template — keep its sections, replacing each guidance line with real content:\n\n${templateMarkdown}`,
+    ticketGuidance: (ticketMarkdown: string) =>
+      `Each individual ticket description should follow this structure:\n\n${ticketMarkdown}`,
   },
   references: {
     heading: "References",
