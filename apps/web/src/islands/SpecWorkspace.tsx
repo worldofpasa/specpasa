@@ -364,9 +364,7 @@ function ContextChips({
   if (referenceOptions.length === 0) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-line pt-2">
-      <span className="text-xs font-medium text-neutral-500">
-        {t.editor.aiContextLabel}
-      </span>
+      <span className="text-xs font-medium text-neutral-500">{t.editor.aiContextLabel}</span>
       {referenceOptions.map((reference) => {
         const included = !excludedRefs.has(reference.id);
         return (
@@ -576,9 +574,7 @@ function WorkspaceToolbar({
       </span>
       {draftState === "dirty" && <span className="text-xs text-review">{t.editor.unsaved}</span>}
       {draftState === "saved" && dirty && (
-        <span className="text-xs text-neutral-400">
-          {t.editor.draftSaved}
-        </span>
+        <span className="text-xs text-neutral-400">{t.editor.draftSaved}</span>
       )}
       <div className="ml-auto flex items-center gap-2">
         {!frozen && canEditDoc && (

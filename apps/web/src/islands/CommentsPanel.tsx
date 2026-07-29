@@ -192,9 +192,7 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
   return (
     <div className="rounded border border-line bg-sheet">
       <div className="flex items-baseline justify-between gap-2 border-b border-line px-3 py-2">
-        <h2 className="text-xs font-semibold text-neutral-500">
-          {t.comments.heading}
-        </h2>
+        <h2 className="text-xs font-semibold text-neutral-500">{t.comments.heading}</h2>
         <p
           className={`text-[11px] ${open > 0 ? "text-review" : "text-neutral-400"}`}
           data-testid="review-summary"

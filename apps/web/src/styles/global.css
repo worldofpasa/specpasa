@@ -66,7 +66,9 @@
 @theme {
   /* One UI face for chrome and documents alike; mono is the exception voice
      for code, raw markdown, and version identifiers. */
-  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    "Inter Variable", Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Cool neutral ramp (paper→ink). Existing neutral-* utilities pick these
