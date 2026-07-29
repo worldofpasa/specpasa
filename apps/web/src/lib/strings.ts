@@ -182,7 +182,7 @@ export const t = {
     seedSections: (phase: string): string[] =>
       (
         (
-          {
+          ({
             prd: [
               ["Problem", "What are we solving, for whom, and why now?"],
               ["Goals", "The outcomes this must achieve — measurable where possible."],
@@ -191,18 +191,27 @@ export const t = {
               ["Open questions", "Unresolved decisions to settle before freezing this PRD."],
             ],
             erd: [
-              ["Overview", "How the system meets the frozen requirements — the architecture at a glance."],
+              [
+                "Overview",
+                "How the system meets the frozen requirements — the architecture at a glance.",
+              ],
               ["Data model", "Entities, fields, and relationships — one subsection per entity."],
               ["Interfaces", "APIs, events, and integration points between components."],
-              ["Non-functional requirements", "Performance, security, reliability, and operational constraints."],
+              [
+                "Non-functional requirements",
+                "Performance, security, reliability, and operational constraints.",
+              ],
               ["Open questions", "Unresolved decisions to settle before freezing this ERD."],
             ],
             tasks: [
               ["Milestones", "The delivery order — what ships first and what it unblocks."],
-              ["Task breakdown", "Concrete implementation tasks, one per block, small enough to estimate."],
+              [
+                "Task breakdown",
+                "Concrete implementation tasks, one per block, small enough to estimate.",
+              ],
               ["Open questions", "Anything still blocking a task from being actionable."],
             ],
-          } as Record<string, [string, string][]>
+          }) as Record<string, [string, string][]>
         )[phase] ?? []
       ).map(([heading, hint]) => `## ${heading}\n\n_${hint}_`),
     fork: "Fork",
