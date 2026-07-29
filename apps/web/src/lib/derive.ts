@@ -73,6 +73,7 @@ export function placeholderSeedBlocks(
     [
       t.lifecycle.seedHeading(spec.title, phase),
       t.lifecycle.seedNote(spec.phase, frozenVersionNumber),
+      ...t.lifecycle.seedSections(phase),
     ].join("\n\n"),
   );
 }

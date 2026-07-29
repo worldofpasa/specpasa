@@ -6,7 +6,7 @@ import { SUPPORTED_CLI_COMMANDS } from "./local-cli.js";
 
 /** CLIs we probe for on PATH (FR-AI-5). Any command found here but absent
  * from SUPPORTED_CLI_COMMANDS is reported as detected-but-not-usable. */
-const KNOWN_CLIS = ["claude", "codex"] as const;
+const KNOWN_CLIS = ["claude", "codex", "cursor-agent", "grok"] as const;
 
 /** Windows resolves commands through PATHEXT — a bare `claude` on disk is
  * actually `claude.cmd` or `claude.exe`. Elsewhere the bare name is the file. */
@@ -41,6 +41,8 @@ function detectCliProviders(): DetectedProvider[] {
         kind: "local_cli",
         name: `${command} CLI`,
         detail: usable ? path : `${path} (detected — adapter support coming)`,
+        command,
+        usable,
       });
     }
   }

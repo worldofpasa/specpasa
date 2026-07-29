@@ -7,9 +7,12 @@ import { type schema } from "../lib/db";
 interface Props {
   spec: typeof schema.specs.$inferSelect;
   openThreads?: number;
+  /** AI conversion panel is mounted on the page — feature it as the primary
+   * next-phase action and demote the blank manual path to a fallback. */
+  aiConvertAvailable?: boolean;
 }
 
-const { spec, openThreads = 0 } = Astro.props;
+const { spec, openThreads = 0, aiConvertAvailable = false } = Astro.props;
 const phaseAfter = nextPhase(spec.phase);
 const transitions = [
   { to: "in_review", label: t.lifecycle.requestReview },
@@ -76,10 +79,27 @@ const available = transitions.filter((transition) =>
     })
   }
   {
+    canAdvancePhase(spec) && phaseAfter && aiConvertAvailable && (
+      <a
+        href="#ai-convert"
+        class="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90"
+      >
+        {t.interview.convert(t.phases.label(phaseAfter))}
+      </a>
+    )
+  }
+  {
     canAdvancePhase(spec) && phaseAfter && (
       <form method="POST" action={actions.advancePhase}>
         <input type="hidden" name="specId" value={spec.id} />
-        <button class="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90">
+        <button
+          class:list={[
+            "rounded px-3 py-1 text-xs font-semibold",
+            aiConvertAvailable
+              ? "border border-line hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              : "bg-accent text-on-accent hover:opacity-90",
+          ]}
+        >
           {t.lifecycle.startNextPhase(phaseAfter)}
         </button>
       </form>

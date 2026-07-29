@@ -11,6 +11,7 @@ import SpecReferences from "../../../components/SpecReferences.astro";
 import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
 import { claudeInterviewAvailable } from "../../../lib/claude";
+import { findExecutableOnPath } from "@specpasa/providers/node";
 import { getDb, schema, asc, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
@@ -108,9 +109,15 @@ const versionNumbers = (
 // Interview panel (draft phase) / AI phase conversion (frozen with a next
 // phase) — both need the local claude CLI plus a Claude CLI provider config.
 const claudeAvailable = canEdit(role) && (await claudeInterviewAvailable(workspace.id));
-const showInterview = claudeAvailable && spec.phase === "draft" && spec.status !== "frozen";
+const wouldInterview = spec.phase === "draft" && spec.status !== "frozen";
+const showInterview = claudeAvailable && wouldInterview;
 const phaseAfter = nextPhase(spec.phase);
-const showConvert = claudeAvailable && canAdvancePhase(spec) && phaseAfter !== null;
+const wouldConvert = canAdvancePhase(spec) && phaseAfter !== null;
+const showConvert = claudeAvailable && wouldConvert;
+// The AI path silently vanishing is worse than saying what's missing — when
+// the gate fails, show what would unlock it instead of hiding the panel.
+const showAiSetupHint = canEdit(role) && !claudeAvailable && (wouldInterview || wouldConvert);
+const claudeBinaryFound = showAiSetupHint && Boolean(findExecutableOnPath("claude"));
 const interviewSkills = [
   {
     name: "grilling",
@@ -189,7 +196,11 @@ const interviewSkills = [
             )
           }
           <PresenceChips client:load selfId={Astro.locals.user!.id} />
-          {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
+          {
+            canEdit(role) && (
+              <SpecLifecycle spec={spec} openThreads={openThreads} aiConvertAvailable={showConvert} />
+            )
+          }
         </div>
       </div>
     </header>
@@ -210,13 +221,34 @@ const interviewSkills = [
         }
         {
           showConvert && phaseAfter && (
-            <div class="mb-6">
+            <div class="mb-6" id="ai-convert">
               <InterviewPanel
                 client:load
                 specId={spec.id}
                 mode="convert"
                 nextPhaseLabel={t.phases.label(phaseAfter)}
               />
+            </div>
+          )
+        }
+        {
+          showAiSetupHint && (
+            <div class="mb-6 rounded border border-dashed border-line bg-sheet px-4 py-3">
+              <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                {t.interview.convertHeading}
+              </p>
+              <p class="mt-1 text-sm text-neutral-500">
+                {wouldConvert && phaseAfter
+                  ? t.interview.unavailableConvert(t.phases.label(phaseAfter))
+                  : t.interview.unavailableInterview}{" "}
+                {claudeBinaryFound ? t.interview.unavailableNoConfig : t.interview.unavailableNoBinary}
+              </p>
+              <a
+                href="/settings/providers"
+                class="mt-2 inline-block text-sm font-semibold text-accent hover:underline"
+              >
+                {t.interview.unavailableCta}
+              </a>
             </div>
           )
         }

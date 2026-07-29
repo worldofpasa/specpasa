@@ -145,6 +145,7 @@ export const t = {
     title: pageTitle("AI Providers"),
     detectedHeading: "Detected on this host",
     detectedItem: (name: string, detail: string) => `✓ ${name} — ${detail}`,
+    enableDetected: "Enable",
     nothingDetected:
       "No local AI backends detected — looked for Ollama on localhost:11434 and the claude/codex CLIs on PATH.",
     empty: "No providers configured yet.",
@@ -171,11 +172,39 @@ export const t = {
     freeze: "Freeze",
     frozenNote: (when: string) => `Frozen ${when} — this spec is immutable. Fork it to iterate.`,
     freezeNeedsVersion: "Save at least one version before freezing.",
-    startNextPhase: (phase: string) => `Start ${phaseLabel(phase)} phase`,
+    startNextPhase: (phase: string) => `Start blank ${phaseLabel(phase)}`,
     derivedFrom: (phase: string) => `Derived from the frozen ${phaseLabel(phase)} spec`,
     seedHeading: (title: string, phase: string) => `# ${title} — ${phaseLabel(phase)}`,
     seedNote: (phase: string, n: number) =>
-      `> Derived from the frozen ${phaseLabel(phase)} (v${n}). The source document is attached as a reference and fed to AI drafts.`,
+      `> Derived from the frozen ${phaseLabel(phase)} (v${n}). The source document is attached as a reference and fed to AI drafts. Replace the starter sections below with your own content.`,
+    /** Starter sections the manual (non-AI) advance path seeds the new phase
+     * with — markdown chunks, one heading + guidance line per section. */
+    seedSections: (phase: string): string[] =>
+      (
+        (
+          {
+            prd: [
+              ["Problem", "What are we solving, for whom, and why now?"],
+              ["Goals", "The outcomes this must achieve — measurable where possible."],
+              ["Non-goals", "What is deliberately out of scope."],
+              ["Requirements", "The functional requirements, one per block, with stable IDs."],
+              ["Open questions", "Unresolved decisions to settle before freezing this PRD."],
+            ],
+            erd: [
+              ["Overview", "How the system meets the frozen requirements — the architecture at a glance."],
+              ["Data model", "Entities, fields, and relationships — one subsection per entity."],
+              ["Interfaces", "APIs, events, and integration points between components."],
+              ["Non-functional requirements", "Performance, security, reliability, and operational constraints."],
+              ["Open questions", "Unresolved decisions to settle before freezing this ERD."],
+            ],
+            tasks: [
+              ["Milestones", "The delivery order — what ships first and what it unblocks."],
+              ["Task breakdown", "Concrete implementation tasks, one per block, small enough to estimate."],
+              ["Open questions", "Anything still blocking a task from being actionable."],
+            ],
+          } as Record<string, [string, string][]>
+        )[phase] ?? []
+      ).map(([heading, hint]) => `## ${heading}\n\n_${hint}_`),
     fork: "Fork",
     forkTitle: (title: string) => `${title} (fork)`,
     statusLabel: "Status",
@@ -368,6 +397,14 @@ export const t = {
     busy: "A session is already running on this spec.",
     convertHeading: "Generate with AI",
     convert: (phase: string) => `Generate ${phase} with AI`,
+    unavailableInterview:
+      "specpasa can interview you to sharpen this idea with the local claude CLI, but no Claude CLI provider is enabled for this workspace.",
+    unavailableConvert: (phase: string) =>
+      `specpasa can turn this frozen document into a first ${phase} draft with the local claude CLI, but no Claude CLI provider is enabled for this workspace.`,
+    unavailableNoBinary:
+      "Install the claude CLI on this host to unlock it, then enable it under AI Providers.",
+    unavailableNoConfig: "Enable it under AI Providers to unlock generation.",
+    unavailableCta: "Set up AI Providers →",
     convertTagline: (phase: string) =>
       `The claude CLI turns this frozen document into a first ${phase} version — it may ask a question or two along the way.`,
     badTicketFormat:

@@ -4,7 +4,7 @@ import { detectLocalProvidersNode, SUPPORTED_CLI_COMMANDS } from "@specpasa/prov
 import Base from "../../layouts/Base.astro";
 import Modal from "../../components/Modal.astro";
 import { getWorkspace } from "../../lib/auth";
-import { getDb, schema, desc, eq } from "../../lib/db";
+import { getDb, schema, and, desc, eq, isNull, or } from "../../lib/db";
 import { t } from "../../lib/strings";
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
@@ -15,6 +15,22 @@ const configs = await getDb()
   .orderBy(desc(schema.ai_provider_configs.created_at));
 
 const detected = await detectLocalProvidersNode();
+
+// A detected CLI without a config row is dead weight — offer one-click
+// enablement. Global (workspace-less) configs count as already enabled.
+const cliConfigs = await getDb()
+  .select({ cli_command: schema.ai_provider_configs.cli_command })
+  .from(schema.ai_provider_configs)
+  .where(
+    and(
+      eq(schema.ai_provider_configs.kind, "local_cli"),
+      or(
+        eq(schema.ai_provider_configs.workspace_id, workspace.id),
+        isNull(schema.ai_provider_configs.workspace_id),
+      ),
+    ),
+  );
+const configuredCommands = new Set(cliConfigs.map((c) => c.cli_command));
 
 const inputClass =
   "rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400";
@@ -64,7 +80,19 @@ const submitClass =
         {
           detected.length > 0 ? (
             detected.map((entry) => (
-              <p class="py-0.5 text-accent">{t.providers.detectedItem(entry.name, entry.detail)}</p>
+              <div class="flex items-center gap-3 py-0.5">
+                <p class="text-accent">{t.providers.detectedItem(entry.name, entry.detail)}</p>
+                {entry.command && entry.usable && !configuredCommands.has(entry.command) && (
+                  <form method="POST" action={actions.saveProviderConfig}>
+                    <input type="hidden" name="kind" value="local_cli" />
+                    <input type="hidden" name="name" value={t.providers.autoAddedName(entry.command)} />
+                    <input type="hidden" name="cliCommand" value={entry.command} />
+                    <button class="rounded border border-line px-2 py-0.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                      {t.providers.enableDetected}
+                    </button>
+                  </form>
+                )}
+              </div>
             ))
           ) : (
             <p class="text-neutral-500">{t.providers.nothingDetected}</p>

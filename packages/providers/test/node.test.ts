@@ -7,7 +7,14 @@ import { parseClaudeStreamLine } from "../src/node/claude-stream.js";
 import { parseCodexStreamLine } from "../src/node/codex-stream.js";
 import { findExecutableOnPath } from "../src/node/detect.js";
 import { createSpecAgentNode } from "../src/node/factory.js";
-import { codexSession, createLocalCliAgent } from "../src/node/local-cli.js";
+import { parseCursorStreamLine } from "../src/node/cursor-stream.js";
+import {
+  codexSession,
+  createLocalCliAgent,
+  cursorSession,
+  grokSession,
+  SUPPORTED_CLI_COMMANDS,
+} from "../src/node/local-cli.js";
 
 describe("parseClaudeStreamLine", () => {
   // Shapes recorded from a real `claude -p --output-format stream-json
@@ -90,6 +97,84 @@ describe("parseCodexStreamLine", () => {
   });
 });
 
+describe("parseCursorStreamLine", () => {
+  // Shapes per the documented cursor-agent stream-json format
+  // (cursor.com/docs/cli/reference/output-format).
+  it("extracts assistant text and joins multiple text parts", () => {
+    const line = JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "text", text: "Hel" },
+          { type: "text", text: "lo" },
+        ],
+      },
+      session_id: "s",
+    });
+    expect(parseCursorStreamLine(line)).toEqual({ kind: "token", text: "Hello" });
+  });
+
+  it("ignores system, user, tool_call events, and noise", () => {
+    for (const line of [
+      JSON.stringify({ type: "system", subtype: "init" }),
+      JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "hi" }] } }),
+      JSON.stringify({ type: "tool_call", subtype: "started" }),
+      JSON.stringify({ type: "assistant", message: { content: [] } }),
+      "not json at all",
+    ]) {
+      expect(parseCursorStreamLine(line).kind).toBe("ignore");
+    }
+  });
+
+  it("maps the terminal result line", () => {
+    const ok = JSON.stringify({ type: "result", subtype: "success", result: "# Doc" });
+    expect(parseCursorStreamLine(ok)).toEqual({ kind: "result", text: "# Doc" });
+    const bad = JSON.stringify({ type: "result", subtype: "error", error: { message: "boom" } });
+    expect(parseCursorStreamLine(bad)).toEqual({ kind: "error", message: "boom" });
+  });
+});
+
+describe("cursorSession", () => {
+  it("prefers the authoritative result text over accumulated stream text", () => {
+    const session = cursorSession("SYS", "USER");
+    session.handleLine(
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "part" }] } }),
+    );
+    session.handleLine(JSON.stringify({ type: "result", subtype: "success", result: "# Final" }));
+    expect(session.finalMarkdown("part")).toBe("# Final");
+  });
+
+  it("falls back to accumulated text when no result line arrived", () => {
+    const session = cursorSession("SYS", "USER");
+    expect(session.finalMarkdown("streamed")).toBe("streamed");
+  });
+
+  it("delimits the system prompt inside the positional prompt (no system flag exists)", () => {
+    const session = cursorSession("SYS", "USER");
+    const prompt = session.args[session.args.length - 1]!;
+    expect(prompt.startsWith("<instructions>\nSYS\n</instructions>")).toBe(true);
+    expect(prompt.endsWith("USER")).toBe(true);
+    // Print mode without --force never modifies files — keep it that way.
+    expect(session.args).not.toContain("--force");
+  });
+});
+
+describe("grokSession", () => {
+  it("streams plain stdout lines and keeps them as the document", () => {
+    const session = grokSession("SYS", "USER");
+    expect(session.handleLine("# Title")).toEqual({ token: "# Title\n" });
+    expect(session.handleLine("")).toEqual({ token: "\n" });
+    expect(session.finalMarkdown("# Title\n\nBody")).toBe("# Title\n\nBody");
+  });
+
+  it("passes the system prompt via --rules and the user prompt via -p", () => {
+    const session = grokSession("SYS", "USER");
+    expect(session.args[session.args.indexOf("-p") + 1]).toBe("USER");
+    expect(session.args[session.args.indexOf("--rules") + 1]).toBe("SYS");
+  });
+});
+
 describe("findExecutableOnPath", () => {
   it("finds an executable in a PATH-style var and misses non-executables", () => {
     const dir = mkdtempSync(join(tmpdir(), "specpasa-detect-"));
@@ -153,7 +238,7 @@ describe("createSpecAgentNode", () => {
   const base = { model: null, baseUrl: null, apiKey: null };
 
   it("builds a local CLI agent for each allowlisted command", () => {
-    for (const cliCommand of ["claude", "codex"] as const) {
+    for (const cliCommand of SUPPORTED_CLI_COMMANDS) {
       const agent = createSpecAgentNode({ ...base, kind: "local_cli", cliCommand });
       expect(agent.kind).toBe("local_cli");
       expect(agent.name).toContain(cliCommand);
