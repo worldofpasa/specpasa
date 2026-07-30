@@ -145,8 +145,6 @@ export const t = {
     tagline:
       "Workspace-scoped provider configs. API keys are encrypted at rest and never sent to the browser.",
     title: pageTitle("AI Providers"),
-    detectedHeading: "Detected on this host",
-    detectedItem: (name: string, detail: string) => `✓ ${name} — ${detail}`,
     autoSyncNote:
       "Supported CLIs found on this host are added as providers automatically — disable one below to opt out without losing it.",
     disabledBadge: "disabled",
@@ -163,7 +161,6 @@ export const t = {
     ollamaModelsDetected: "Pick from the models detected on this host, or type another.",
     nothingDetected:
       "No local AI backends detected — looked for Ollama on localhost:11434 and the claude, codex, cursor-agent, and grok CLIs on PATH.",
-    empty: "No providers configured yet.",
     keyStored: "key stored (encrypted)",
     remove: "Remove",
     displayNameAnthropic: "Display name (e.g. Claude)",
@@ -203,8 +200,12 @@ export const t = {
           google: "Google Gemini",
         }) as Record<string, string>
       )[kind] ?? kind,
-    detectedLinked: (name: string) => `→ added as ${name}`,
-    detectedAdd: "Add",
+    groupLocalHeading: "On this machine",
+    groupCloudHeading: "Cloud APIs",
+    addCloudProvider: "Add cloud provider",
+    notDetectedNow: "not detected right now",
+    notInstalled: "not installed on this host",
+    cloudEmpty: "No cloud providers yet — bring an API key from OpenRouter, Anthropic, OpenAI, and more.",
     modelLabel: "model",
     commandLabel: "command",
     displayNameCloud: "Display name (e.g. OpenRouter)",

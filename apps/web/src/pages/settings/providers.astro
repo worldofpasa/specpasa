@@ -50,13 +50,30 @@ const cliStillDetected = (config: (typeof configs)[number]): boolean =>
   config.cli_command !== null &&
   detectedCommands.has(config.cli_command);
 
-/** The config row a detection landed in (CLI by command, Ollama by kind) —
- * links the "detected" panel to the list below instead of leaving the two
- * sections looking unrelated. */
+/** The config row a detection landed in (CLI by command, Ollama by kind). */
 const configForDetection = (entry: (typeof detected)[number]) =>
   entry.kind === "local_cli"
     ? configs.find((c) => c.kind === "local_cli" && c.cli_command === entry.command)
     : configs.find((c) => c.kind === entry.kind);
+
+// Detection is a property of a local provider, not a separate panel: the
+// "On this machine" group carries liveness inline, detected-but-unconfigured
+// backends become one-click adds, and supported-but-absent CLIs render
+// dimmed. (Design picked from the variant-B prototype — see branch
+// prototype/providers-merge-variants.)
+const detectedEntryFor = (config: (typeof configs)[number]) =>
+  config.kind === "local_cli"
+    ? detected.find((entry) => entry.command === config.cli_command)
+    : config.kind === "ollama"
+      ? detected.find((entry) => entry.kind === "ollama")
+      : undefined;
+const isLocalKind = (kind: string): boolean => kind === "local_cli" || kind === "ollama";
+const localConfigs = configs.filter((config) => isLocalKind(config.kind));
+const cloudConfigs = configs.filter((config) => !isLocalKind(config.kind));
+const unconfiguredDetected = detected.filter((entry) => !configForDetection(entry));
+const missingClis = autoDetect
+  ? SUPPORTED_CLI_COMMANDS.filter((command) => !detectedCommands.has(command))
+  : [];
 
 const rowSettings = (config: (typeof configs)[number]) => parseProviderSettings(config.settings);
 
@@ -111,8 +128,11 @@ const toggleKnob = (on: boolean) => [
 
     <section class="mt-6 rounded border border-line bg-sheet">
       <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <h2 class="text-xs font-semibold text-neutral-500">
-          {t.providers.detectedHeading}
+        <h2 class="flex items-center gap-2 text-xs font-semibold text-neutral-500">
+          {t.providers.groupLocalHeading}
+          <span class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent">
+            {localConfigs.length}
+          </span>
         </h2>
         <form method="POST" action={actions.setAutoDetect} class="flex items-center gap-2">
           <span class="text-[11px] font-medium text-neutral-500">
@@ -130,55 +150,179 @@ const toggleKnob = (on: boolean) => [
           </button>
         </form>
       </div>
-      <div class="px-4 py-3 text-sm">
+      <ul class="divide-y divide-line">
+        {!autoDetect && (
+          <li class="px-4 py-3 text-sm text-neutral-500">{t.providers.autoDetectOff}</li>
+        )}
         {
-          !autoDetect ? (
-            <p class="text-neutral-500">{t.providers.autoDetectOff}</p>
-          ) : detected.length > 0 ? (
-            <>
-              {detected.map((entry) => {
-                const config = configForDetection(entry);
-                return (
-                  <p class="flex flex-wrap items-center gap-2 py-0.5">
+          localConfigs.map((config) => {
+            const live = detectedEntryFor(config);
+            return (
+              <li
+                id={`provider-${config.id}`}
+                class:list={["px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
+              >
+                <div class="flex items-center gap-3">
+                  <span class="relative inline-flex">
                     <ProviderIcon
-                      svg={iconForProvider(entry.kind, entry.command)}
-                      class="text-accent"
+                      svg={iconForProvider(config.kind, config.cli_command, config.base_url)}
+                      class="text-ink"
                     />
-                    <span class="text-accent">
-                      {t.providers.detectedItem(entry.name, entry.detail)}
-                    </span>
-                    {config ? (
-                      <a href={`#provider-${config.id}`} class="text-xs text-neutral-500 underline">
-                        {t.providers.detectedLinked(config.name)}
-                      </a>
-                    ) : (
-                      <button
-                        data-modal-open="add-provider-modal"
-                        data-preset={entry.kind === "ollama" ? "ollama" : undefined}
-                        class="rounded border border-line px-2 py-0.5 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      >
-                        {t.providers.detectedAdd}
-                      </button>
+                    {live && (
+                      <span class="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-accent" />
                     )}
-                  </p>
-                );
-              })}
-              <p class="mt-1 text-xs text-neutral-500">{t.providers.autoSyncNote}</p>
-            </>
-          ) : (
-            <p class="text-neutral-500">{t.providers.nothingDetected}</p>
+                  </span>
+                  <span class="font-medium">{config.name}</span>
+                  {autoDetect && !live && (
+                    <span class="text-[11px] font-medium text-amber-600">
+                      {t.providers.notDetectedNow}
+                    </span>
+                  )}
+                  {!config.enabled && (
+                    <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
+                      {t.providers.disabledBadge}
+                    </span>
+                  )}
+                  <span class="ml-auto flex items-center gap-3">
+                    <form method="POST" action={actions.setProviderEnabled}>
+                      <input type="hidden" name="id" value={config.id} />
+                      <input type="hidden" name="enabled" value={config.enabled ? "false" : "true"} />
+                      <button
+                        role="switch"
+                        aria-checked={config.enabled}
+                        title={config.enabled ? t.providers.disable : t.providers.enable}
+                        aria-label={config.enabled ? t.providers.disable : t.providers.enable}
+                        class:list={toggleTrack(config.enabled)}
+                      >
+                        <span class:list={toggleKnob(config.enabled)} />
+                      </button>
+                    </form>
+                    <button
+                      data-modal-open={`edit-provider-${config.id}`}
+                      title={t.providers.editProvider(config.name)}
+                      aria-label={t.providers.editProvider(config.name)}
+                      class="text-neutral-400 hover:text-accent"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        <path d="m15 5 4 4" />
+                      </svg>
+                    </button>
+                    <button
+                      data-modal-open={`delete-provider-${config.id}`}
+                      title={t.providers.remove}
+                      aria-label={t.providers.remove}
+                      class="text-neutral-400 hover:text-red-600"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
+                    </button>
+                  </span>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 pl-7 text-xs text-neutral-500">
+                  {config.model && (
+                    <span>
+                      {t.providers.modelLabel}: <span class="font-mono">{config.model}</span>
+                    </span>
+                  )}
+                  {config.cli_command && (
+                    <span>
+                      {t.providers.commandLabel}:{" "}
+                      <span class="font-mono">{config.cli_command}</span>
+                    </span>
+                  )}
+                  {/* CLI detail = binary path; ollama's would repeat the model chip */}
+                  {live && config.kind === "local_cli" && (
+                    <span class="truncate">{live.detail}</span>
+                  )}
+                </div>
+              </li>
+            );
+          })
+        }
+        {
+          unconfiguredDetected.map((entry) => (
+            <li class="flex items-center gap-3 px-4 py-3 text-sm">
+              <ProviderIcon svg={iconForProvider(entry.kind, entry.command)} class="text-neutral-400" />
+              <span class="font-medium text-neutral-500">{entry.name}</span>
+              <span class="truncate text-xs text-neutral-500">{entry.detail}</span>
+              <button
+                data-modal-open="add-provider-modal"
+                data-preset={entry.kind === "ollama" ? "ollama" : "local_cli"}
+                class="ml-auto rounded bg-accent px-2 py-1 text-xs font-semibold text-on-accent hover:opacity-90"
+              >
+                {t.providers.add}
+              </button>
+            </li>
+          ))
+        }
+        {
+          missingClis.map((command) => (
+            <li class="flex items-center gap-3 px-4 py-2.5 text-sm opacity-50">
+              <ProviderIcon svg={iconForProvider("local_cli", command)} class="text-neutral-400" />
+              <span class="text-neutral-500">{command}</span>
+              <span class="text-xs text-neutral-400">{t.providers.notInstalled}</span>
+            </li>
+          ))
+        }
+        {
+          autoDetect && localConfigs.length === 0 && unconfiguredDetected.length === 0 && (
+            <li class="px-4 py-6 text-sm text-neutral-500">{t.providers.nothingDetected}</li>
           )
         }
-      </div>
+      </ul>
+      {
+        autoDetect && (
+          <p class="border-t border-line px-4 py-2 text-xs text-neutral-500">
+            {t.providers.autoSyncNote}
+          </p>
+        )
+      }
     </section>
 
     <section class="mt-6 rounded border border-line bg-sheet">
-      <h2 class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500">
-        {t.providers.heading}
-      </h2>
+      <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+        <h2 class="flex items-center gap-2 text-xs font-semibold text-neutral-500">
+          {t.providers.groupCloudHeading}
+          <span class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent">
+            {cloudConfigs.length}
+          </span>
+        </h2>
+        <button
+          data-modal-open="add-provider-modal"
+          class="rounded border border-line px-2 py-1 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          {t.providers.addCloudProvider}
+        </button>
+      </div>
       <ul class="divide-y divide-line">
         {
-          configs.map((config) => (
+          cloudConfigs.map((config) => (
             <li
               id={`provider-${config.id}`}
               class:list={["px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
@@ -277,7 +421,11 @@ const toggleKnob = (on: boolean) => [
             </li>
           ))
         }
-        {configs.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.providers.empty}</li>}
+        {
+          cloudConfigs.length === 0 && (
+            <li class="px-4 py-6 text-sm text-neutral-500">{t.providers.cloudEmpty}</li>
+          )
+        }
       </ul>
     </section>
   </main>
