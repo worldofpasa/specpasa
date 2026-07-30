@@ -3,6 +3,8 @@ import { actions } from "astro:actions";
 import { detectLocalProvidersNode, SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import Base from "../../layouts/Base.astro";
 import Modal from "../../components/Modal.astro";
+import ProviderIcon from "../../components/ProviderIcon.astro";
+import { iconForPreset, iconForProvider } from "../../lib/provider-icons";
 import { getWorkspace } from "../../lib/auth";
 import { autoDetectEnabled, syncDetectedCliProviders } from "../../lib/cli-providers";
 import { parseProviderSettings } from "@specpasa/providers";
@@ -138,6 +140,10 @@ const toggleKnob = (on: boolean) => [
                 const config = configForDetection(entry);
                 return (
                   <p class="flex flex-wrap items-center gap-2 py-0.5">
+                    <ProviderIcon
+                      svg={iconForProvider(entry.kind, entry.command)}
+                      class="text-accent"
+                    />
                     <span class="text-accent">
                       {t.providers.detectedItem(entry.name, entry.detail)}
                     </span>
@@ -178,6 +184,10 @@ const toggleKnob = (on: boolean) => [
               class:list={["px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
             >
               <div class="flex items-center gap-3">
+                <ProviderIcon
+                  svg={iconForProvider(config.kind, config.cli_command, config.base_url)}
+                  class="text-ink"
+                />
                 <span class="font-medium">{config.name}</span>
                 <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
                   {t.providers.kindLabel(config.kind)}
@@ -399,6 +409,15 @@ const toggleKnob = (on: boolean) => [
     <div class="flex flex-col gap-3">
       <label class="flex items-center gap-2 text-sm">
         <span class="text-xs font-medium text-neutral-500">{t.providers.presetLabel}</span>
+        {
+          ["anthropic", ...CLOUD_PROVIDER_PRESETS.map((preset) => preset.id), "ollama", "local_cli"].map(
+            (id, index) => (
+              <span data-preset-icon={id} hidden={index !== 0}>
+                <ProviderIcon svg={iconForPreset(id)} class="text-ink" />
+              </span>
+            ),
+          )
+        }
         <select
           data-preset-picker
           class="rounded border border-line bg-transparent px-2 py-1.5 text-sm"
@@ -589,6 +608,9 @@ const toggleKnob = (on: boolean) => [
       const match = form.dataset.presetForm === preset;
       form.hidden = !match;
       if (match) activate(form);
+    });
+    document.querySelectorAll<HTMLElement>("[data-preset-icon]").forEach((icon) => {
+      icon.hidden = icon.dataset.presetIcon !== preset;
     });
   }
 
