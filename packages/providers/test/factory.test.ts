@@ -27,7 +27,12 @@ describe("createSpecAgent", () => {
   });
 
   it("builds an OpenRouter agent on the preset base URL", () => {
-    const agent = createSpecAgent({ ...base, kind: "openrouter", model: "some/model", apiKey: "k" });
+    const agent = createSpecAgent({
+      ...base,
+      kind: "openrouter",
+      model: "some/model",
+      apiKey: "k",
+    });
     expect(agent.kind).toBe("openrouter");
     expect(agent.name).toContain(OPENAI_COMPAT_PRESETS.openrouter.baseUrl);
   });
@@ -53,9 +58,9 @@ describe("createSpecAgent", () => {
     expect(() => createSpecAgent({ ...base, kind: "openai_compatible", model: "m" })).toThrow(
       ProviderConfigError,
     );
-    expect(() =>
-      createSpecAgent({ ...base, kind: "openrouter", apiKey: "k" }),
-    ).toThrow(ProviderConfigError); // model missing
+    expect(() => createSpecAgent({ ...base, kind: "openrouter", apiKey: "k" })).toThrow(
+      ProviderConfigError,
+    ); // model missing
   });
 
   it("points local_cli at the Node entry from the runtime-agnostic factory", () => {

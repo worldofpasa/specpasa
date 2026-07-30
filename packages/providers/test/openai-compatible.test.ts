@@ -32,7 +32,9 @@ describe("createOpenAiCompatibleAgent", () => {
   it("streams tokens and finishes with parsed blocks", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(sseBody(chunk("# Title"), chunk("\n\nBody"), "data: [DONE]\n\n"))),
+      vi.fn(
+        async () => new Response(sseBody(chunk("# Title"), chunk("\n\nBody"), "data: [DONE]\n\n")),
+      ),
     );
     const agent = createOpenAiCompatibleAgent({
       baseUrl: "https://api.example.com/v1",
@@ -63,7 +65,10 @@ describe("createOpenAiCompatibleAgent", () => {
     expect(url).toBe("https://api.example.com/v1/chat/completions");
     expect((keyedInit.headers as Record<string, string>).authorization).toBe("Bearer sk-test");
 
-    const keyless = createOpenAiCompatibleAgent({ baseUrl: "http://localhost:1234/v1", model: "m" });
+    const keyless = createOpenAiCompatibleAgent({
+      baseUrl: "http://localhost:1234/v1",
+      model: "m",
+    });
     await collect(keyless.draft(request));
     const [, keylessInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
     expect((keylessInit.headers as Record<string, string>).authorization).toBeUndefined();
@@ -120,7 +125,10 @@ describe("createOpenAiCompatibleAgent", () => {
       vi.fn(
         async () =>
           new Response(
-            sseBody(chunk("partial"), `data: ${JSON.stringify({ error: { message: "quota" } })}\n\n`),
+            sseBody(
+              chunk("partial"),
+              `data: ${JSON.stringify({ error: { message: "quota" } })}\n\n`,
+            ),
           ),
       ),
     );
@@ -132,7 +140,10 @@ describe("createOpenAiCompatibleAgent", () => {
   });
 
   it("reports an empty stream as an error, not an empty done", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(sseBody("data: [DONE]\n\n"))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(sseBody("data: [DONE]\n\n"))),
+    );
     const agent = createOpenAiCompatibleAgent({ baseUrl: "https://x.test/v1", model: "m" });
     const events = await collect(agent.draft(request));
     expect(events.at(-1)?.type).toBe("error");

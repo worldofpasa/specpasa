@@ -206,14 +206,16 @@ export const t = {
     addCloudProvider: "Add cloud provider",
     notDetectedNow: "not detected right now",
     notInstalled: "not installed on this host",
-    cloudEmpty: "No cloud providers yet — bring an API key from OpenRouter, Anthropic, OpenAI, and more.",
+    cloudEmpty:
+      "No cloud providers yet — bring an API key from OpenRouter, Anthropic, OpenAI, and more.",
     modelLabel: "model",
     commandLabel: "command",
     displayNameCloud: "Display name (e.g. OpenRouter)",
     cloudBaseUrlPlaceholder: "Base URL (e.g. https://api.openai.com/v1)",
     cloudModelPlaceholder: "Model id — pick a suggestion or type any",
     cloudKeyOptionalNote: "Key is optional for keyless local servers.",
-    modelListHint: "Model suggestions load from the provider when reachable — free text always works.",
+    modelListHint:
+      "Model suggestions load from the provider when reachable — free text always works.",
     editProvider: (name: string) => `Edit ${name}`,
     keyKeepNote: "Leave blank to keep the stored key.",
     save: "Save",

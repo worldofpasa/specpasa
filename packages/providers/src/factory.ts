@@ -73,7 +73,9 @@ export const OPENAI_COMPAT_PRESETS = {
     requiresKey: true,
   },
   openai_compatible: { baseUrl: null, requiresKey: false },
-} as const satisfies Partial<Record<AiProviderKind, { baseUrl: string | null; requiresKey: boolean }>>;
+} as const satisfies Partial<
+  Record<AiProviderKind, { baseUrl: string | null; requiresKey: boolean }>
+>;
 
 export type OpenAiCompatibleKind = keyof typeof OPENAI_COMPAT_PRESETS;
 

@@ -78,7 +78,10 @@ describe("listProviderModels", () => {
     );
     expect(await listProviderModels({ kind: "ollama" })).toEqual([]);
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 500 })),
+    );
     expect(await listProviderModels({ kind: "openrouter", apiKey: "k" })).toEqual([]);
 
     const fetchMock = vi.fn();

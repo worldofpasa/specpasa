@@ -267,9 +267,9 @@ describe("createSpecAgentNode", () => {
         settings: { extraArgs: [] },
       }),
     ).not.toThrow();
-    expect(() =>
-      createLocalCliAgent({ command: "claude", extraArgs: ["bad\narg"] }),
-    ).toThrow(ProviderConfigError);
+    expect(() => createLocalCliAgent({ command: "claude", extraArgs: ["bad\narg"] })).toThrow(
+      ProviderConfigError,
+    );
   });
 });
 

@@ -98,7 +98,11 @@ function claudeSession(system: string, user: string, options: CliSessionOptions 
 }
 
 /** Exported for unit tests. */
-export function codexSession(system: string, user: string, options: CliSessionOptions = {}): CliSession {
+export function codexSession(
+  system: string,
+  user: string,
+  options: CliSessionOptions = {},
+): CliSession {
   // Tokens streamed to the UI are best-effort deltas (dedup by emitted
   // length per item id); the PERSISTED markdown always comes from the final
   // per-item text, so an item.completed that revises earlier partial text
@@ -142,7 +146,11 @@ export function codexSession(system: string, user: string, options: CliSessionOp
 }
 
 /** Exported for unit tests. */
-export function cursorSession(system: string, user: string, options: CliSessionOptions = {}): CliSession {
+export function cursorSession(
+  system: string,
+  user: string,
+  options: CliSessionOptions = {},
+): CliSession {
   let resultText: string | null = null;
   return {
     // The prompt is positional in print mode (stdin is only read as extra
@@ -172,7 +180,11 @@ export function cursorSession(system: string, user: string, options: CliSessionO
 }
 
 /** Exported for unit tests. */
-export function grokSession(system: string, user: string, options: CliSessionOptions = {}): CliSession {
+export function grokSession(
+  system: string,
+  user: string,
+  options: CliSessionOptions = {},
+): CliSession {
   // grok's streaming-json event schema is not published, so this adapter
   // stays on plain output: stdout lines stream to the UI as-is and the
   // accumulated text is the document. --rules appends to the system prompt
