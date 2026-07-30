@@ -1,0 +1,55 @@
+---
+/**
+ * PROTOTYPE — throwaway. Floating variant switcher for UI prototypes.
+ * Rendered only in dev (the host page gates on import.meta.env.DEV).
+ * Deleted when a variant wins.
+ */
+interface Props {
+  variants: { key: string; label: string }[];
+  current: string;
+}
+
+const { variants, current } = Astro.props;
+const index = Math.max(
+  0,
+  variants.findIndex((v) => v.key === current),
+);
+const prev = variants[(index - 1 + variants.length) % variants.length]!;
+const next = variants[(index + 1) % variants.length]!;
+const href = (key: string) => `?variant=${key}`;
+const label = variants[index]!.label;
+---
+
+<div
+  class="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-amber-400 bg-neutral-900 px-2 py-1 text-sm text-amber-300 shadow-lg"
+>
+  <a
+    href={href(prev.key)}
+    data-proto-prev
+    aria-label="Previous variant"
+    class="rounded-full px-2 py-0.5 hover:bg-neutral-700">←</a
+  >
+  <span class="px-1 font-medium whitespace-nowrap">{label}</span>
+  <a
+    href={href(next.key)}
+    data-proto-next
+    aria-label="Next variant"
+    class="rounded-full px-2 py-0.5 hover:bg-neutral-700">→</a
+  >
+</div>
+
+<script>
+  document.addEventListener("keydown", (event) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select, [contenteditable]")) return;
+    const arrow =
+      event.key === "ArrowLeft"
+        ? "[data-proto-prev]"
+        : event.key === "ArrowRight"
+          ? "[data-proto-next]"
+          : null;
+    if (!arrow) return;
+    const link = document.querySelector<HTMLAnchorElement>(arrow);
+    if (link) window.location.assign(link.href);
+  });
+</script>

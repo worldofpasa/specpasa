@@ -1,0 +1,247 @@
+---
+/**
+ * PROTOTYPE — throwaway. Variant B: grouped by origin. "On this machine"
+ * absorbs the detection panel entirely — live rows carry their detected
+ * path/models inline, supported-but-missing CLIs appear dimmed, detected-but-
+ * unconfigured backends are one-click adds. Cloud APIs live in their own
+ * group with a dedicated add affordance. This grouping pattern would extend
+ * to other settings pages (e.g. Templates: built-in vs workspace).
+ * Copy is intentionally literal; it moves to strings.ts if this variant wins.
+ */
+import { actions } from "astro:actions";
+import ProviderIcon from "../ProviderIcon.astro";
+import type { ProvidersPrototypeData, PrototypeRow } from "./providers-prototype";
+
+interface Props {
+  data: ProvidersPrototypeData;
+}
+
+const { rows, ghosts, missing, autoDetect } = Astro.props.data;
+const localRows = rows.filter((row) => row.isLocal);
+const cloudRows = rows.filter((row) => !row.isLocal);
+
+const detailBits = (row: PrototypeRow): string[] => {
+  const bits: string[] = [];
+  if (row.config.model) bits.push(`model: ${row.config.model}`);
+  if (row.detectedDetail) bits.push(row.detectedDetail);
+  else if (row.config.cli_command) bits.push(`command: ${row.config.cli_command}`);
+  if (row.config.encrypted_credentials) bits.push("key stored (encrypted)");
+  return bits;
+};
+---
+
+{/* prettier-ignore — shared row action cluster kept inline per variant on purpose */}
+
+<section class="mt-6 rounded border border-line bg-sheet">
+  <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+    <h2 class="flex items-center gap-2 text-xs font-semibold text-neutral-500">
+      On this machine
+      <span class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent">
+        {localRows.length}
+      </span>
+    </h2>
+    <form method="POST" action={actions.setAutoDetect} class="flex items-center gap-2">
+      <span class="text-[11px] font-medium text-neutral-500">Auto-detect</span>
+      <input type="hidden" name="enabled" value={autoDetect ? "false" : "true"} />
+      <button
+        role="switch"
+        aria-checked={autoDetect}
+        aria-label="Auto-detect"
+        class:list={[
+          "relative h-5 w-9 rounded-full transition-colors",
+          autoDetect ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+        ]}
+      >
+        <span
+          class:list={[
+            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+            autoDetect ? "left-[18px]" : "left-0.5",
+          ]}
+        />
+      </button>
+    </form>
+  </div>
+  <ul class="divide-y divide-line">
+    {
+      localRows.map((row) => (
+        <li
+          id={`provider-${row.config.id}`}
+          class:list={["px-4 py-3 text-sm", !row.config.enabled && "opacity-60"]}
+        >
+          <div class="flex items-center gap-3">
+            <span class="relative inline-flex">
+              <ProviderIcon svg={row.icon} class="text-ink" />
+              {row.detectedDetail && (
+                <span class="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-accent" />
+              )}
+            </span>
+            <span class="font-medium">{row.config.name}</span>
+            {!row.detectedDetail && (
+              <span class="text-[11px] font-medium text-amber-600">not detected right now</span>
+            )}
+            {!row.config.enabled && (
+              <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
+                disabled
+              </span>
+            )}
+            <span class="ml-auto flex items-center gap-3">
+              <form method="POST" action={actions.setProviderEnabled}>
+                <input type="hidden" name="id" value={row.config.id} />
+                <input type="hidden" name="enabled" value={row.config.enabled ? "false" : "true"} />
+                <button
+                  role="switch"
+                  aria-checked={row.config.enabled}
+                  aria-label={row.config.enabled ? "Disable" : "Enable"}
+                  class:list={[
+                    "relative h-5 w-9 rounded-full transition-colors",
+                    row.config.enabled ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+                  ]}
+                >
+                  <span
+                    class:list={[
+                      "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+                      row.config.enabled ? "left-[18px]" : "left-0.5",
+                    ]}
+                  />
+                </button>
+              </form>
+              <button
+                data-modal-open={`edit-provider-${row.config.id}`}
+                aria-label={`Edit ${row.config.name}`}
+                class="text-xs font-medium text-neutral-400 hover:text-accent"
+              >
+                Edit
+              </button>
+              <button
+                data-modal-open={`delete-provider-${row.config.id}`}
+                aria-label={`Remove ${row.config.name}`}
+                class="text-xs font-medium text-neutral-400 hover:text-red-600"
+              >
+                Remove
+              </button>
+            </span>
+          </div>
+          <div class="mt-1 pl-7 text-xs text-neutral-500">{detailBits(row).join("  ·  ")}</div>
+        </li>
+      ))
+    }
+    {
+      ghosts.map((ghost) => (
+        <li class="flex items-center gap-3 px-4 py-3 text-sm">
+          <ProviderIcon svg={ghost.icon} class="text-neutral-400" />
+          <span class="font-medium text-neutral-500">{ghost.name}</span>
+          <span class="truncate text-xs text-neutral-500">{ghost.detail}</span>
+          <button
+            data-modal-open="add-provider-modal"
+            data-preset={ghost.preset}
+            class="ml-auto rounded bg-accent px-2 py-1 text-xs font-semibold text-on-accent hover:opacity-90"
+          >
+            Add
+          </button>
+        </li>
+      ))
+    }
+    {
+      missing.map((entry) => (
+        <li class="flex items-center gap-3 px-4 py-2.5 text-sm opacity-50">
+          <ProviderIcon svg={entry.icon} class="text-neutral-400" />
+          <span class="text-neutral-500">{entry.command}</span>
+          <span class="text-xs text-neutral-400">not installed on this host</span>
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<section class="mt-6 rounded border border-line bg-sheet">
+  <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+    <h2 class="flex items-center gap-2 text-xs font-semibold text-neutral-500">
+      Cloud APIs
+      <span class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent">
+        {cloudRows.length}
+      </span>
+    </h2>
+    <button
+      data-modal-open="add-provider-modal"
+      class="rounded border border-line px-2 py-1 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+    >
+      Add cloud provider
+    </button>
+  </div>
+  <ul class="divide-y divide-line">
+    {
+      cloudRows.map((row) => (
+        <li
+          id={`provider-${row.config.id}`}
+          class:list={["px-4 py-3 text-sm", !row.config.enabled && "opacity-60"]}
+        >
+          <div class="flex items-center gap-3">
+            <ProviderIcon svg={row.icon} class="text-ink" />
+            <span class="font-medium">{row.config.name}</span>
+            <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+              {row.kindLabel}
+            </span>
+            {!row.config.enabled && (
+              <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
+                disabled
+              </span>
+            )}
+            <span class="ml-auto flex items-center gap-3">
+              <form method="POST" action={actions.setProviderEnabled}>
+                <input type="hidden" name="id" value={row.config.id} />
+                <input type="hidden" name="enabled" value={row.config.enabled ? "false" : "true"} />
+                <button
+                  role="switch"
+                  aria-checked={row.config.enabled}
+                  aria-label={row.config.enabled ? "Disable" : "Enable"}
+                  class:list={[
+                    "relative h-5 w-9 rounded-full transition-colors",
+                    row.config.enabled ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+                  ]}
+                >
+                  <span
+                    class:list={[
+                      "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+                      row.config.enabled ? "left-[18px]" : "left-0.5",
+                    ]}
+                  />
+                </button>
+              </form>
+              <button
+                data-modal-open={`edit-provider-${row.config.id}`}
+                aria-label={`Edit ${row.config.name}`}
+                class="text-xs font-medium text-neutral-400 hover:text-accent"
+              >
+                Edit
+              </button>
+              <button
+                data-modal-open={`delete-provider-${row.config.id}`}
+                aria-label={`Remove ${row.config.name}`}
+                class="text-xs font-medium text-neutral-400 hover:text-red-600"
+              >
+                Remove
+              </button>
+            </span>
+          </div>
+          <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 pl-7 text-xs text-neutral-500">
+            {row.config.model && (
+              <span>
+                model: <span class="font-mono">{row.config.model}</span>
+              </span>
+            )}
+            {row.config.encrypted_credentials && (
+              <span class="text-neutral-400">key stored (encrypted)</span>
+            )}
+          </div>
+        </li>
+      ))
+    }
+    {
+      cloudRows.length === 0 && (
+        <li class="px-4 py-6 text-sm text-neutral-500">
+          No cloud providers yet — bring an API key from OpenRouter, Anthropic, OpenAI, and more.
+        </li>
+      )
+    }
+  </ul>
+</section>

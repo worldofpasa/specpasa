@@ -11,6 +11,11 @@ import { parseProviderSettings } from "@specpasa/providers";
 import { getDb, schema, desc, eq } from "../../lib/db";
 import { CLOUD_PROVIDER_PRESETS } from "../../lib/provider-presets";
 import { t } from "../../lib/strings";
+import PrototypeSwitcher from "../../components/prototype/PrototypeSwitcher.astro";
+import ProvidersVariantA from "../../components/prototype/ProvidersVariantA.astro";
+import ProvidersVariantB from "../../components/prototype/ProvidersVariantB.astro";
+import ProvidersVariantC from "../../components/prototype/ProvidersVariantC.astro";
+import type { ProvidersPrototypeData } from "../../components/prototype/providers-prototype";
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
 
@@ -69,6 +74,44 @@ const baseUrlHost = (url: string): string => {
   }
 };
 
+// PROTOTYPE — three variants of merging the detection panel into the
+// provider list, switchable via ?variant= on this route, dev builds only.
+// Deleted (along with components/prototype/) once a direction wins.
+const PROTO_VARIANTS = [
+  { key: "current", label: "Current — panel + list" },
+  { key: "a", label: "A — unified list" },
+  { key: "b", label: "B — grouped by origin" },
+  { key: "c", label: "C — catalog grid" },
+];
+const variant = import.meta.env.DEV ? (Astro.url.searchParams.get("variant") ?? "current") : "current";
+const detectedEntryFor = (config: (typeof configs)[number]) =>
+  config.kind === "local_cli"
+    ? detected.find((entry) => entry.command === config.cli_command)
+    : config.kind === "ollama"
+      ? detected.find((entry) => entry.kind === "ollama")
+      : undefined;
+const prototypeData: ProvidersPrototypeData = {
+  rows: configs.map((config) => ({
+    config,
+    icon: iconForProvider(config.kind, config.cli_command, config.base_url),
+    kindLabel: t.providers.kindLabel(config.kind),
+    isLocal: config.kind === "local_cli" || config.kind === "ollama",
+    detectedDetail: detectedEntryFor(config)?.detail ?? null,
+  })),
+  ghosts: detected
+    .filter((entry) => !configForDetection(entry))
+    .map((entry) => ({
+      icon: iconForProvider(entry.kind, entry.command),
+      name: entry.name,
+      detail: entry.detail,
+      preset: entry.kind === "ollama" ? "ollama" : "local_cli",
+    })),
+  missing: SUPPORTED_CLI_COMMANDS.filter((command) => !detectedCommands.has(command)).map(
+    (command) => ({ command, icon: iconForProvider("local_cli", command) }),
+  ),
+  autoDetect,
+};
+
 const inputClass =
   "rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400";
 const submitClass =
@@ -109,6 +152,12 @@ const toggleKnob = (on: boolean) => [
       )
     }
 
+    {variant === "a" && <ProvidersVariantA data={prototypeData} />}
+    {variant === "b" && <ProvidersVariantB data={prototypeData} />}
+    {variant === "c" && <ProvidersVariantC data={prototypeData} />}
+
+    {variant === "current" && (
+    <>
     <section class="mt-6 rounded border border-line bg-sheet">
       <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
         <h2 class="text-xs font-semibold text-neutral-500">
@@ -280,7 +329,11 @@ const toggleKnob = (on: boolean) => [
         {configs.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.providers.empty}</li>}
       </ul>
     </section>
+    </>
+    )}
   </main>
+
+  {import.meta.env.DEV && <PrototypeSwitcher variants={PROTO_VARIANTS} current={variant} />}
 
   {
     configs.map((config) => (

@@ -1,0 +1,155 @@
+---
+/**
+ * PROTOTYPE — throwaway. Variant A: one unified list, detection as a status
+ * chip. No separate panel: every row carries its own liveness, and detected-
+ * but-unconfigured backends appear as dashed suggestion rows at the bottom.
+ * Copy is intentionally literal; it moves to strings.ts if this variant wins.
+ */
+import { actions } from "astro:actions";
+import ProviderIcon from "../ProviderIcon.astro";
+import type { ProvidersPrototypeData } from "./providers-prototype";
+
+interface Props {
+  data: ProvidersPrototypeData;
+}
+
+const { rows, ghosts, autoDetect } = Astro.props.data;
+---
+
+<section class="mt-6 rounded border border-line bg-sheet">
+  <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+    <h2 class="text-xs font-semibold text-neutral-500">AI Providers</h2>
+    <form method="POST" action={actions.setAutoDetect} class="flex items-center gap-2">
+      <span class="text-[11px] font-medium text-neutral-500">Auto-detect local backends</span>
+      <input type="hidden" name="enabled" value={autoDetect ? "false" : "true"} />
+      <button
+        role="switch"
+        aria-checked={autoDetect}
+        aria-label="Auto-detect local backends"
+        class:list={[
+          "relative h-5 w-9 rounded-full transition-colors",
+          autoDetect ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+        ]}
+      >
+        <span
+          class:list={[
+            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+            autoDetect ? "left-[18px]" : "left-0.5",
+          ]}
+        />
+      </button>
+    </form>
+  </div>
+  <ul class="divide-y divide-line">
+    {
+      rows.map(({ config, icon, kindLabel, isLocal, detectedDetail }) => (
+        <li
+          id={`provider-${config.id}`}
+          class:list={["px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
+        >
+          <div class="flex items-center gap-3">
+            <ProviderIcon svg={icon} class="text-ink" />
+            <span class="font-medium">{config.name}</span>
+            <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+              {kindLabel}
+            </span>
+            {isLocal ? (
+              detectedDetail ? (
+                <span class="flex items-center gap-1 text-[11px] font-medium text-accent">
+                  <span class="h-1.5 w-1.5 rounded-full bg-accent" /> on this host
+                </span>
+              ) : (
+                <span class="flex items-center gap-1 text-[11px] font-medium text-amber-600">
+                  <span class="h-1.5 w-1.5 rounded-full bg-amber-500" /> not detected
+                </span>
+              )
+            ) : (
+              <span class="text-[11px] font-medium text-neutral-400">cloud</span>
+            )}
+            {!config.enabled && (
+              <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
+                disabled
+              </span>
+            )}
+            <span class="ml-auto flex items-center gap-3">
+              <form method="POST" action={actions.setProviderEnabled}>
+                <input type="hidden" name="id" value={config.id} />
+                <input type="hidden" name="enabled" value={config.enabled ? "false" : "true"} />
+                <button
+                  role="switch"
+                  aria-checked={config.enabled}
+                  aria-label={config.enabled ? "Disable" : "Enable"}
+                  class:list={[
+                    "relative h-5 w-9 rounded-full transition-colors",
+                    config.enabled ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+                  ]}
+                >
+                  <span
+                    class:list={[
+                      "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+                      config.enabled ? "left-[18px]" : "left-0.5",
+                    ]}
+                  />
+                </button>
+              </form>
+              <button
+                data-modal-open={`edit-provider-${config.id}`}
+                aria-label={`Edit ${config.name}`}
+                class="text-xs font-medium text-neutral-400 hover:text-accent"
+              >
+                Edit
+              </button>
+              <button
+                data-modal-open={`delete-provider-${config.id}`}
+                aria-label={`Remove ${config.name}`}
+                class="text-xs font-medium text-neutral-400 hover:text-red-600"
+              >
+                Remove
+              </button>
+            </span>
+          </div>
+          <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 pl-7 text-xs text-neutral-500">
+            {config.model && (
+              <span>
+                model: <span class="font-mono">{config.model}</span>
+              </span>
+            )}
+            {config.cli_command && (
+              <span>
+                command: <span class="font-mono">{config.cli_command}</span>
+              </span>
+            )}
+            {detectedDetail && <span class="truncate">{detectedDetail}</span>}
+            {config.encrypted_credentials && (
+              <span class="text-neutral-400">key stored (encrypted)</span>
+            )}
+          </div>
+        </li>
+      ))
+    }
+    {
+      ghosts.map((ghost) => (
+        <li class="flex items-center gap-3 border-t border-dashed border-line px-4 py-3 text-sm opacity-80">
+          <ProviderIcon svg={ghost.icon} class="text-neutral-400" />
+          <span class="font-medium text-neutral-500">{ghost.name}</span>
+          <span class="flex items-center gap-1 text-[11px] font-medium text-accent">
+            <span class="h-1.5 w-1.5 rounded-full bg-accent" /> detected — not configured
+          </span>
+          <span class="truncate text-xs text-neutral-500">{ghost.detail}</span>
+          <button
+            data-modal-open="add-provider-modal"
+            data-preset={ghost.preset}
+            class="ml-auto rounded border border-line px-2 py-1 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            Add
+          </button>
+        </li>
+      ))
+    }
+    {
+      rows.length === 0 && ghosts.length === 0 && (
+        <li class="px-4 py-6 text-sm text-neutral-500">No providers configured yet.</li>
+      )
+    }
+  </ul>
+</section>
