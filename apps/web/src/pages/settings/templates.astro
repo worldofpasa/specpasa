@@ -1,0 +1,208 @@
+---
+import { actions } from "astro:actions";
+import { TEMPLATE_KINDS } from "@specpasa/core";
+import Base from "../../layouts/Base.astro";
+import Modal from "../../components/Modal.astro";
+import { getWorkspace } from "../../lib/auth";
+import { listAllTemplates } from "../../lib/templates";
+import { t } from "../../lib/strings";
+
+const workspace = await getWorkspace(Astro.locals.user!.id);
+
+// POST-redirect-GET: a reload after any template form action must not
+// re-submit (duplicate templates, flip-flopping defaults).
+const prgResult =
+  Astro.getActionResult(actions.saveTemplate) ??
+  Astro.getActionResult(actions.deleteTemplate) ??
+  Astro.getActionResult(actions.setDefaultTemplate);
+if (prgResult && !prgResult.error) return Astro.redirect("/settings/templates");
+
+const templatesByKind = await listAllTemplates(workspace.id);
+
+const inputClass =
+  "rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400";
+const submitClass =
+  "self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90";
+const badgeClass =
+  "rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent";
+---
+
+<Base title={t.templates.title}>
+  <main class="mx-auto max-w-4xl px-6 py-10">
+    <header>
+      <p class="text-xs font-medium text-neutral-500">
+        {t.templates.heading}
+      </p>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight">{workspace.name}</h1>
+      <p class="mt-1 max-w-xl text-sm text-neutral-500">{t.templates.tagline}</p>
+    </header>
+
+    {
+      TEMPLATE_KINDS.map((kind) => (
+        <section class="mt-6 rounded border border-line bg-sheet">
+          <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+            <div>
+              <h2 class="text-xs font-semibold text-neutral-500">
+                {t.templates.kindLabel(kind)}
+              </h2>
+              <p class="text-xs text-neutral-500">{t.templates.kindDetail(kind)}</p>
+            </div>
+            <button
+              data-modal-open={`tpl-new-${kind}`}
+              class="rounded border border-line px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              {t.templates.newTemplate}
+            </button>
+          </div>
+          <ul class="divide-y divide-line">
+            {templatesByKind[kind].map((template) => (
+              <li class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                <span class="font-medium">{template.name}</span>
+                {template.builtIn && <span class={badgeClass}>{t.templates.builtinBadge}</span>}
+                {template.isDefault && <span class={badgeClass}>{t.templates.defaultBadge}</span>}
+                <span class="ml-auto flex items-center gap-3">
+                  {!template.isDefault && (
+                    <form method="POST" action={actions.setDefaultTemplate}>
+                      <input type="hidden" name="kind" value={kind} />
+                      {!template.builtIn && <input type="hidden" name="id" value={template.id} />}
+                      <button class="text-xs text-accent hover:underline">
+                        {t.templates.makeDefault}
+                      </button>
+                    </form>
+                  )}
+                  {!template.builtIn && (
+                    <>
+                      <button
+                        data-modal-open={`tpl-edit-${template.id}`}
+                        class="text-xs text-accent hover:underline"
+                      >
+                        {t.templates.edit}
+                      </button>
+                      <button
+                        data-modal-open={`tpl-delete-${template.id}`}
+                        title={t.templates.remove}
+                        aria-label={t.templates.remove}
+                        class="text-neutral-400 hover:text-red-600"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </main>
+
+  {
+    TEMPLATE_KINDS.flatMap((kind) => templatesByKind[kind].filter((tpl) => !tpl.builtIn)).map(
+      (template) => (
+        <Modal id={`tpl-delete-${template.id}`} title={t.templates.deleteConfirmTitle}>
+          <div class="flex flex-col gap-3">
+            <p class="text-sm">{t.templates.deleteConfirmBody(template.name)}</p>
+            <div class="flex justify-end gap-2">
+              <button
+                type="button"
+                data-modal-close
+                class="rounded border border-line px-3 py-1.5 text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                {t.ui.cancel}
+              </button>
+              <form method="POST" action={actions.deleteTemplate}>
+                <input type="hidden" name="id" value={template.id} />
+                <button class="rounded bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
+                  {t.templates.remove}
+                </button>
+              </form>
+            </div>
+          </div>
+        </Modal>
+      ),
+    )
+  }
+  {
+    TEMPLATE_KINDS.map((kind) => (
+      <Modal id={`tpl-new-${kind}`} title={t.templates.newModalTitle(kind)} size="lg">
+        <form
+          method="POST"
+          action={actions.saveTemplate}
+          enctype="multipart/form-data"
+          class="flex flex-col gap-3"
+        >
+          <input type="hidden" name="kind" value={kind} />
+          <input name="name" required placeholder={t.templates.namePlaceholder} class={inputClass} />
+          <label class="flex flex-col gap-1 text-xs text-neutral-500">
+            {t.templates.contentLabel}
+            <textarea
+              name="content"
+              rows={12}
+              class={`${inputClass} font-mono`}
+              set:text={templatesByKind[kind].find((template) => template.builtIn)?.content}
+            />
+          </label>
+          <p class="text-xs text-neutral-500">{t.templates.newContentNote}</p>
+          <label class="flex flex-col gap-1 text-xs text-neutral-500">
+            {t.templates.importLabel}
+            <input type="file" name="file" accept=".md,.markdown,.txt" class="text-xs" />
+          </label>
+          <button class={submitClass}>{t.templates.save}</button>
+        </form>
+      </Modal>
+    ))
+  }
+  {
+    TEMPLATE_KINDS.flatMap((kind) => templatesByKind[kind].filter((tpl) => !tpl.builtIn)).map(
+      (template) => (
+        <Modal
+          id={`tpl-edit-${template.id}`}
+          title={t.templates.editModalTitle(template.name)}
+          size="lg"
+        >
+          <form
+            method="POST"
+            action={actions.saveTemplate}
+            enctype="multipart/form-data"
+            class="flex flex-col gap-3"
+          >
+            <input type="hidden" name="id" value={template.id} />
+            <input type="hidden" name="kind" value={template.kind} />
+            <input name="name" required value={template.name} class={inputClass} />
+            <label class="flex flex-col gap-1 text-xs text-neutral-500">
+              {t.templates.contentLabel}
+              <textarea
+                name="content"
+                rows={12}
+                class={`${inputClass} font-mono`}
+                set:text={template.content}
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-xs text-neutral-500">
+              {t.templates.importLabel}
+              <input type="file" name="file" accept=".md,.markdown,.txt" class="text-xs" />
+            </label>
+            <button class={submitClass}>{t.templates.save}</button>
+          </form>
+        </Modal>
+      ),
+    )
+  }
+</Base>

@@ -6,6 +6,7 @@ import {
   REFERENCE_KINDS,
   SPEC_PHASES,
   SPEC_STATUSES,
+  TEMPLATE_KINDS,
   type SpecBlock,
 } from "@specpasa/core";
 
@@ -32,6 +33,9 @@ export const workspaces = sqliteTable("workspaces", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  // Workspace preferences (e.g. auto_detect: false turns off local AI
+  // probing/auto-provisioning). Absent keys mean the default behavior.
+  settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>(),
   created_by: text("created_by")
     .notNull()
     .references(() => users.id),
@@ -166,6 +170,29 @@ export const specs = sqliteTable(
     updated_at: updatedAt(),
   },
   (t) => [index("specs_intent_idx").on(t.intent_id)],
+);
+
+// Workspace-authored document templates. Built-in standard templates live in
+// code (apps/web/src/lib/templates.ts), not here — only customs and edited
+// copies are rows. At most one default per (workspace, kind), app-enforced.
+export const spec_templates = sqliteTable(
+  "spec_templates",
+  {
+    id: id(),
+    workspace_id: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    kind: text("kind", { enum: TEMPLATE_KINDS }).notNull(),
+    name: text("name").notNull(),
+    content: text("content").notNull(),
+    is_default: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    created_by: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    created_at: createdAt(),
+    updated_at: updatedAt(),
+  },
+  (t) => [index("spec_templates_workspace_kind_idx").on(t.workspace_id, t.kind)],
 );
 
 export const spec_versions = sqliteTable(

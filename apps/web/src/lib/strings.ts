@@ -34,10 +34,12 @@ export const t = {
     close: "Close",
     closeGlyph: "✕",
     infoGlyph: "ⓘ",
+    cancel: "Cancel",
   },
   nav: {
     projects: "Projects",
     providers: "AI Providers",
+    templates: "Templates",
     members: "Members",
     logout: "Log out",
     theme: {
@@ -99,7 +101,7 @@ export const t = {
     version: (n: number) => `Version ${n}`,
     unsaved: "unsaved changes",
     draftSaved: "Draft saved",
-    draftRestored: "Restored your unsaved draft — it isn't a version yet.",
+    draftRestored: "Working draft — not saved as a version yet.",
     discardDraft: "Discard draft",
     edit: "Edit",
     preview: "Preview",
@@ -145,8 +147,22 @@ export const t = {
     title: pageTitle("AI Providers"),
     detectedHeading: "Detected on this host",
     detectedItem: (name: string, detail: string) => `✓ ${name} — ${detail}`,
+    autoSyncNote:
+      "Supported CLIs found on this host are added as providers automatically — disable one below to opt out without losing it.",
+    disabledBadge: "disabled",
+    enable: "Enable",
+    disable: "Disable",
+    deleteConfirmTitle: "Remove provider",
+    deleteConfirmBody: (name: string) =>
+      `Remove ${name}? It disappears from every AI picker — existing versions keep their history.`,
+    deleteConfirmCliNote:
+      "This CLI is still installed on this host, so it will be re-added automatically on the next visit. Disable it instead if you want it to stay off — or turn off auto-detect entirely.",
+    autoDetectLabel: "Auto-detect",
+    autoDetectOff:
+      "Auto-detect is off — nothing on this host is probed, and no providers are added automatically.",
+    ollamaModelsDetected: "Pick from the models detected on this host, or type another.",
     nothingDetected:
-      "No local AI backends detected — looked for Ollama on localhost:11434 and the claude/codex CLIs on PATH.",
+      "No local AI backends detected — looked for Ollama on localhost:11434 and the claude, codex, cursor-agent, and grok CLIs on PATH.",
     empty: "No providers configured yet.",
     keyStored: "key stored (encrypted)",
     remove: "Remove",
@@ -171,11 +187,11 @@ export const t = {
     freeze: "Freeze",
     frozenNote: (when: string) => `Frozen ${when} — this spec is immutable. Fork it to iterate.`,
     freezeNeedsVersion: "Save at least one version before freezing.",
-    startNextPhase: (phase: string) => `Start ${phaseLabel(phase)} phase`,
+    startNextPhase: (phase: string) => `Start blank ${phaseLabel(phase)}`,
     derivedFrom: (phase: string) => `Derived from the frozen ${phaseLabel(phase)} spec`,
     seedHeading: (title: string, phase: string) => `# ${title} — ${phaseLabel(phase)}`,
     seedNote: (phase: string, n: number) =>
-      `> Derived from the frozen ${phaseLabel(phase)} (v${n}). The source document is attached as a reference and fed to AI drafts.`,
+      `> Derived from the frozen ${phaseLabel(phase)} (v${n}). The source document is attached as a reference and fed to AI drafts. Replace the starter sections below with your own content.`,
     fork: "Fork",
     forkTitle: (title: string) => `${title} (fork)`,
     statusLabel: "Status",
@@ -188,6 +204,89 @@ export const t = {
     /** Client-side template for the live count (SpecLifecycle inline script). */
     openThreadsWarningTemplate: "{n} comment threads are still open.",
     freezeConfirmLabel: "Freeze anyway",
+  },
+  templates: {
+    heading: "Templates",
+    title: pageTitle("Templates"),
+    tagline:
+      "Document templates per phase. The default seeds new blank documents, and AI generation follows it as structure guidance.",
+    kindLabel: (kind: string) => (kind === "ticket" ? "TICKET" : phaseLabel(kind)),
+    kindDetail: (kind: string) =>
+      (
+        ({
+          prd: "Seeds a blank PRD",
+          erd: "Seeds a blank ERD and guides AI conversion",
+          tasks: "Seeds the tickets document and guides AI conversion",
+          ticket: "The body structure of each individual ticket",
+        }) as Record<string, string>
+      )[kind] ?? kind,
+    builtinName: (kind: string) => `Standard ${kind === "ticket" ? "Ticket" : phaseLabel(kind)}`,
+    builtinBadge: "Built-in",
+    defaultBadge: "Default",
+    makeDefault: "Make default",
+    newTemplate: "+ New template",
+    edit: "Edit",
+    remove: "Remove",
+    save: "Save template",
+    namePlaceholder: "Template name",
+    contentLabel: "Template content (markdown)",
+    importLabel: "…or import a .md file (replaces the content above)",
+    newModalTitle: (kind: string) =>
+      `New ${kind === "ticket" ? "Ticket" : phaseLabel(kind)} template`,
+    editModalTitle: (name: string) => `Edit ${name}`,
+    newContentNote:
+      "Prefilled with the built-in standard — edit it into your own, or import a file below.",
+    /** Built-in standard sections per template kind — heading + guidance line. */
+    builtinSections: (kind: string): [string, string][] =>
+      (
+        ({
+          prd: [
+            ["Problem", "What are we solving, for whom, and why now?"],
+            ["Goals", "The outcomes this must achieve — measurable where possible."],
+            ["Non-goals", "What is deliberately out of scope."],
+            ["Requirements", "The functional requirements, one per block, with stable IDs."],
+            ["Open questions", "Unresolved decisions to settle before freezing this PRD."],
+          ],
+          erd: [
+            [
+              "Overview",
+              "How the system meets the frozen requirements — the architecture at a glance.",
+            ],
+            ["Data model", "Entities, fields, and relationships — one subsection per entity."],
+            ["Interfaces", "APIs, events, and integration points between components."],
+            [
+              "Non-functional requirements",
+              "Performance, security, reliability, and operational constraints.",
+            ],
+            ["Open questions", "Unresolved decisions to settle before freezing this ERD."],
+          ],
+          tasks: [
+            ["Milestones", "The delivery order — what ships first and what it unblocks."],
+            [
+              "Task breakdown",
+              "Epics as ## headings, each with a checklist of concrete, estimable tickets.",
+            ],
+            ["Open questions", "Anything still blocking a ticket from being actionable."],
+          ],
+          ticket: [
+            ["Summary", "One sentence on what this ticket delivers."],
+            ["Context", "Why this is needed — link the ERD section it implements."],
+            ["Acceptance criteria", "Checkable statements that mean this ticket is done."],
+          ],
+        }) as Record<string, [string, string][]>
+      )[kind] ?? [],
+    emptyContent: "A template needs content — write some markdown or import a file.",
+    deleteConfirmTitle: "Remove template",
+    deleteConfirmBody: (name: string) =>
+      `Remove ${name}? Documents already created from it are not affected.`,
+    switcherLabel: "Template",
+    switcherLocked:
+      "Templates can only be switched while the document is an unedited template — content is already written.",
+    appliedSummary: (name: string) => `Applied template: ${name}`,
+    conversionGuidance: (templateMarkdown: string) =>
+      `Structure the generated document following this template — keep its sections, replacing each guidance line with real content:\n\n${templateMarkdown}`,
+    ticketGuidance: (ticketMarkdown: string) =>
+      `Each individual ticket description should follow this structure:\n\n${ticketMarkdown}`,
   },
   references: {
     heading: "References",
@@ -368,6 +467,14 @@ export const t = {
     busy: "A session is already running on this spec.",
     convertHeading: "Generate with AI",
     convert: (phase: string) => `Generate ${phase} with AI`,
+    unavailableInterview:
+      "specpasa can interview you to sharpen this idea with the local claude CLI, but no Claude CLI provider is enabled for this workspace.",
+    unavailableConvert: (phase: string) =>
+      `specpasa can turn this frozen document into a first ${phase} draft with the local claude CLI, but no Claude CLI provider is enabled for this workspace.`,
+    unavailableNoBinary:
+      "Install the claude CLI on this host to unlock it, then enable it under AI Providers.",
+    unavailableNoConfig: "Enable it under AI Providers to unlock generation.",
+    unavailableCta: "Set up AI Providers →",
     convertTagline: (phase: string) =>
       `The claude CLI turns this frozen document into a first ${phase} version — it may ask a question or two along the way.`,
     badTicketFormat:

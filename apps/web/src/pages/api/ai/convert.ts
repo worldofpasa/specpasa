@@ -13,6 +13,7 @@ import { specInWorkspace } from "../../../lib/authz";
 import { claudeInterviewAvailable } from "../../../lib/claude";
 import { getDb, schema, eq } from "../../../lib/db";
 import { deriveNextPhaseSpec } from "../../../lib/derive";
+import { resolveDefaultTemplate } from "../../../lib/templates";
 import { hasActiveSessionForSpec } from "../../../lib/interview-sessions";
 import { sessionResponse } from "../../../lib/interview-stream";
 import { t } from "../../../lib/strings";
@@ -64,9 +65,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     .where(eq(schema.spec_versions.id, spec.current_version_id!));
   if (!frozenVersion) return new Response("Spec has no frozen version", { status: 400 });
 
+  // The workspace's default template for the target phase rides along as
+  // structure guidance; a tasks conversion also carries the per-ticket body
+  // template so each generated ticket follows it.
+  const template = await resolveDefaultTemplate(workspace.id, phase);
+  const guidance = [t.templates.conversionGuidance(template.content)];
+  if (phase === "tasks") {
+    const ticketTemplate = await resolveDefaultTemplate(workspace.id, "ticket");
+    guidance.push(t.templates.ticketGuidance(ticketTemplate.content));
+  }
+
   const session = createInterviewSession({
     skill: CONVERSION_SKILLS[phase],
     documentMarkdown: blocksToMarkdown(frozenVersion.blocks),
+    prompt: guidance.join("\n\n"),
   });
 
   return sessionResponse(
@@ -84,8 +96,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const { id } = await deriveNextPhaseSpec({
           spec,
           phase,
-          blocks: blocksFromMarkdown(markdown),
-          summary: `${t.lifecycle.derivedFrom(spec.phase)} (AI)`,
+          seed: {
+            mode: "version",
+            blocks: blocksFromMarkdown(markdown),
+            summary: `${t.lifecycle.derivedFrom(spec.phase)} (AI)`,
+          },
           userId: user.id,
           aiGenerated: true,
         });

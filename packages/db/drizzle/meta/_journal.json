@@ -15,6 +15,20 @@
       "when": 1783556920449,
       "tag": "0001_warm_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785300898162,
+      "tag": "0002_redundant_inhumans",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785381270293,
+      "tag": "0003_busy_vengeance",
+      "breakpoints": true
     }
   ]
 }
