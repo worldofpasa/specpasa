@@ -257,4 +257,54 @@ describe("createSpecAgentNode", () => {
     const agent = createSpecAgentNode({ ...base, kind: "anthropic", apiKey: "sk-ant-x" });
     expect(agent.kind).toBe("anthropic");
   });
+
+  it("refuses stored extraArgs that fail validation", () => {
+    expect(() =>
+      createSpecAgentNode({
+        ...base,
+        kind: "local_cli",
+        cliCommand: "claude",
+        settings: { extraArgs: [] },
+      }),
+    ).not.toThrow();
+    expect(() => createLocalCliAgent({ command: "claude", extraArgs: ["bad\narg"] })).toThrow(
+      ProviderConfigError,
+    );
+  });
+});
+
+describe("CLI session model flag and extra args placement", () => {
+  const options = { model: "test-model", extraArgs: ["--custom-flag"] };
+
+  it("codex: config args come before the '-' stdin sentinel", () => {
+    const args = codexSession("sys", "user", options).args;
+    expect(args.at(-1)).toBe("-");
+    const modelAt = args.indexOf("--model");
+    expect(modelAt).toBeGreaterThan(-1);
+    expect(args[modelAt + 1]).toBe("test-model");
+    expect(args.indexOf("--custom-flag")).toBeLessThan(args.indexOf("-"));
+  });
+
+  it("cursor-agent: config args come before the positional prompt", () => {
+    const args = cursorSession("sys", "user", options).args;
+    expect(args.at(-1)).toContain("user"); // positional prompt stays last
+    expect(args.indexOf("--model")).toBeLessThan(args.length - 1);
+    expect(args[args.indexOf("--model") + 1]).toBe("test-model");
+    expect(args.indexOf("--custom-flag")).toBeLessThan(args.length - 1);
+  });
+
+  it("grok: config args append after the existing flags", () => {
+    const args = grokSession("sys", "user", options).args;
+    expect(args.indexOf("--model")).toBeGreaterThan(args.indexOf("--no-auto-update"));
+    expect(args[args.indexOf("--model") + 1]).toBe("test-model");
+    expect(args.at(-1)).toBe("--custom-flag");
+  });
+
+  it("omits the model flag and extra args entirely when unset", () => {
+    for (const session of [codexSession, cursorSession, grokSession]) {
+      const args = session("sys", "user").args;
+      expect(args).not.toContain("--model");
+      expect(args).not.toContain("--custom-flag");
+    }
+  });
 });

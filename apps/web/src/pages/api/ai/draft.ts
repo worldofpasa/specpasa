@@ -108,6 +108,7 @@ async function buildAgent(config: typeof schema.ai_provider_configs.$inferSelect
     apiKey: config.encrypted_credentials
       ? await decryptSecret(config.encrypted_credentials, SPECPASA_SECRET)
       : null,
+    settings: config.settings,
   });
 }
 

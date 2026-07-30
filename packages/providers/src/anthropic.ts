@@ -6,6 +6,8 @@ import { type AgentEvent, type AgentRequest, type SpecAgent } from "./types.js";
 export interface AnthropicAgentConfig {
   apiKey: string;
   model?: string;
+  /** Appended to the built-in system prompt (see prompts.ts). */
+  systemPromptOverride?: string;
 }
 
 const DEFAULT_MODEL = "claude-opus-4-8";
@@ -25,7 +27,7 @@ export function createAnthropicAgent(config: AnthropicAgentConfig): SpecAgent {
         model,
         max_tokens: 64000,
         thinking: { type: "adaptive" },
-        system: systemPrompt(request),
+        system: systemPrompt(request, config.systemPromptOverride),
         messages: [{ role: "user", content: userPrompt(request, mode) }],
       });
       for await (const event of stream) {

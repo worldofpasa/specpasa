@@ -5,6 +5,8 @@ import { type AgentEvent, type AgentRequest, type SpecAgent } from "./types.js";
 export interface OllamaAgentConfig {
   baseUrl?: string;
   model: string;
+  /** Appended to the built-in system prompt (see prompts.ts). */
+  systemPromptOverride?: string;
 }
 
 export const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
@@ -42,7 +44,7 @@ export function createOllamaAgent(config: OllamaAgentConfig): SpecAgent {
           model: config.model,
           stream: true,
           messages: [
-            { role: "system", content: systemPrompt(request) },
+            { role: "system", content: systemPrompt(request, config.systemPromptOverride) },
             { role: "user", content: userPrompt(request, mode) },
           ],
         }),

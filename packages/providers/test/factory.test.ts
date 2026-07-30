@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { AI_PROVIDER_KINDS } from "@specpasa/core";
 import {
   createSpecAgent,
+  OPENAI_COMPAT_PRESETS,
   ProviderConfigError,
-  ProviderNotImplementedError,
   ProviderRequiresNodeError,
 } from "../src/factory.js";
 
@@ -26,11 +26,41 @@ describe("createSpecAgent", () => {
     expect(() => createSpecAgent({ ...base, kind: "ollama" })).toThrow(ProviderConfigError);
   });
 
-  it("names the milestone for kinds that are not implemented yet", () => {
-    expect(() => createSpecAgent({ ...base, kind: "openrouter" })).toThrow(
-      ProviderNotImplementedError,
+  it("builds an OpenRouter agent on the preset base URL", () => {
+    const agent = createSpecAgent({
+      ...base,
+      kind: "openrouter",
+      model: "some/model",
+      apiKey: "k",
+    });
+    expect(agent.kind).toBe("openrouter");
+    expect(agent.name).toContain(OPENAI_COMPAT_PRESETS.openrouter.baseUrl);
+  });
+
+  it("builds a keyless custom-endpoint agent when a base URL is given", () => {
+    const agent = createSpecAgent({
+      ...base,
+      kind: "openai_compatible",
+      model: "local-model",
+      baseUrl: "http://localhost:1234/v1",
+    });
+    expect(agent.kind).toBe("openai_compatible");
+  });
+
+  it("rejects misconfigured OpenAI-compatible kinds with a specific error", () => {
+    // preset kinds require a key; bring-your-own-URL kind requires the URL
+    expect(() => createSpecAgent({ ...base, kind: "openrouter", model: "m" })).toThrow(
+      ProviderConfigError,
     );
-    expect(() => createSpecAgent({ ...base, kind: "openrouter" })).toThrow(/M2\+/);
+    expect(() => createSpecAgent({ ...base, kind: "google", model: "m" })).toThrow(
+      ProviderConfigError,
+    );
+    expect(() => createSpecAgent({ ...base, kind: "openai_compatible", model: "m" })).toThrow(
+      ProviderConfigError,
+    );
+    expect(() => createSpecAgent({ ...base, kind: "openrouter", apiKey: "k" })).toThrow(
+      ProviderConfigError,
+    ); // model missing
   });
 
   it("points local_cli at the Node entry from the runtime-agnostic factory", () => {

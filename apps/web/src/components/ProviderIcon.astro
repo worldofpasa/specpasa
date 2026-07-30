@@ -1,0 +1,19 @@
+---
+/**
+ * Inline monochrome provider icon (see assets/provider-icons/README.md).
+ * The vendored SVGs are 1em-sized and fill=currentColor, so the wrapping
+ * span's font-size and text color control them.
+ */
+interface Props {
+  svg: string;
+  class?: string;
+}
+
+const { svg, class: className = "" } = Astro.props;
+---
+
+<span
+  class:list={["inline-flex shrink-0 items-center [&>svg]:h-4 [&>svg]:w-4", className]}
+  aria-hidden="true"
+  set:html={svg}
+/>
