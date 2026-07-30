@@ -34,6 +34,7 @@ export const t = {
     close: "Close",
     closeGlyph: "✕",
     infoGlyph: "ⓘ",
+    cancel: "Cancel",
   },
   nav: {
     projects: "Projects",
@@ -151,6 +152,11 @@ export const t = {
     disabledBadge: "disabled",
     enable: "Enable",
     disable: "Disable",
+    deleteConfirmTitle: "Remove provider",
+    deleteConfirmBody: (name: string) =>
+      `Remove ${name}? It disappears from every AI picker — existing versions keep their history.`,
+    deleteConfirmCliNote:
+      "This CLI is still installed on this host, so it will be re-added automatically on the next visit. Disable it instead if you want it to stay off.",
     nothingDetected:
       "No local AI backends detected — looked for Ollama on localhost:11434 and the claude, codex, cursor-agent, and grok CLIs on PATH.",
     empty: "No providers configured yet.",
@@ -266,6 +272,9 @@ export const t = {
         }) as Record<string, [string, string][]>
       )[kind] ?? [],
     emptyContent: "A template needs content — write some markdown or import a file.",
+    deleteConfirmTitle: "Remove template",
+    deleteConfirmBody: (name: string) =>
+      `Remove ${name}? Documents already created from it are not affected.`,
     switcherLabel: "Template",
     switcherLocked:
       "Templates can only be switched while the document is an unedited template — content is already written.",

@@ -21,11 +21,16 @@ const configs = await getDb()
   .orderBy(desc(schema.ai_provider_configs.created_at));
 
 const detected = await detectLocalProvidersNode();
-// A CLI row whose binary is still on PATH can only be disabled, not removed —
-// removal would just get re-provisioned on the next load.
+// Deleting a CLI row whose binary is still on PATH is allowed but futile —
+// auto-provisioning re-adds it on the next load. The delete confirmation
+// warns about exactly this and points at Disable as the sticky opt-out.
 const detectedCommands = new Set(
   detected.flatMap((entry) => (entry.command ? [entry.command] : [])),
 );
+const cliStillDetected = (config: (typeof configs)[number]): boolean =>
+  config.kind === "local_cli" &&
+  config.cli_command !== null &&
+  detectedCommands.has(config.cli_command);
 
 const inputClass =
   "rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400";
@@ -95,57 +100,109 @@ const submitClass =
       </h2>
       <ul class="divide-y divide-line">
         {
-          configs.map((config) => {
-            const cliStillDetected =
-              config.kind === "local_cli" &&
-              config.cli_command !== null &&
-              detectedCommands.has(config.cli_command);
-            return (
-              <li
-                class:list={["flex items-center gap-3 px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
-              >
-                <span class="font-medium">{config.name}</span>
-                <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
-                  {config.kind}
+          configs.map((config) => (
+            <li
+              class:list={["flex items-center gap-3 px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
+            >
+              <span class="font-medium">{config.name}</span>
+              <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+                {config.kind}
+              </span>
+              <span class="min-w-0 truncate font-mono text-xs text-neutral-500">
+                {config.model ?? config.cli_command}
+              </span>
+              {config.encrypted_credentials && (
+                <span class="text-[11px] text-neutral-400">
+                  {t.providers.keyStored}
                 </span>
-                <span class="min-w-0 truncate font-mono text-xs text-neutral-500">
-                  {config.model ?? config.cli_command}
+              )}
+              {!config.enabled && (
+                <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
+                  {t.providers.disabledBadge}
                 </span>
-                {config.encrypted_credentials && (
-                  <span class="text-[11px] text-neutral-400">
-                    {t.providers.keyStored}
-                  </span>
-                )}
-                {!config.enabled && (
-                  <span class="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-neutral-500">
-                    {t.providers.disabledBadge}
-                  </span>
-                )}
-                <span class="ml-auto flex items-center gap-3">
-                  <form method="POST" action={actions.setProviderEnabled}>
-                    <input type="hidden" name="id" value={config.id} />
-                    <input type="hidden" name="enabled" value={config.enabled ? "false" : "true"} />
-                    <button class="text-xs text-accent hover:underline">
-                      {config.enabled ? t.providers.disable : t.providers.enable}
-                    </button>
-                  </form>
-                  {!cliStillDetected && (
-                    <form method="POST" action={actions.deleteProviderConfig}>
-                      <input type="hidden" name="id" value={config.id} />
-                      <button class="text-xs text-red-600 hover:underline">
-                        {t.providers.remove}
-                      </button>
-                    </form>
-                  )}
-                </span>
-              </li>
-            );
-          })
+              )}
+              <span class="ml-auto flex items-center gap-3">
+                <form method="POST" action={actions.setProviderEnabled}>
+                  <input type="hidden" name="id" value={config.id} />
+                  <input type="hidden" name="enabled" value={config.enabled ? "false" : "true"} />
+                  <button
+                    role="switch"
+                    aria-checked={config.enabled}
+                    title={config.enabled ? t.providers.disable : t.providers.enable}
+                    aria-label={config.enabled ? t.providers.disable : t.providers.enable}
+                    class:list={[
+                      "relative h-5 w-9 rounded-full transition-colors",
+                      config.enabled ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+                    ]}
+                  >
+                    <span
+                      class:list={[
+                        "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+                        config.enabled ? "left-[18px]" : "left-0.5",
+                      ]}
+                    />
+                  </button>
+                </form>
+                <button
+                  data-modal-open={`delete-provider-${config.id}`}
+                  title={t.providers.remove}
+                  aria-label={t.providers.remove}
+                  class="text-neutral-400 hover:text-red-600"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </button>
+              </span>
+            </li>
+          ))
         }
         {configs.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.providers.empty}</li>}
       </ul>
     </section>
   </main>
+
+  {
+    configs.map((config) => (
+      <Modal id={`delete-provider-${config.id}`} title={t.providers.deleteConfirmTitle}>
+        <div class="flex flex-col gap-3">
+          <p class="text-sm">{t.providers.deleteConfirmBody(config.name)}</p>
+          {cliStillDetected(config) && (
+            <p class="text-xs text-review">{t.providers.deleteConfirmCliNote}</p>
+          )}
+          <div class="flex justify-end gap-2">
+            <button
+              type="button"
+              data-modal-close
+              class="rounded border border-line px-3 py-1.5 text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              {t.ui.cancel}
+            </button>
+            <form method="POST" action={actions.deleteProviderConfig}>
+              <input type="hidden" name="id" value={config.id} />
+              <button class="rounded bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
+                {t.providers.remove}
+              </button>
+            </form>
+          </div>
+        </div>
+      </Modal>
+    ))
+  }
 
   <Modal id="add-anthropic-modal" title={t.providers.addAnthropic}>
     <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3">

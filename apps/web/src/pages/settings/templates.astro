@@ -78,12 +78,30 @@ const badgeClass =
                       >
                         {t.templates.edit}
                       </button>
-                      <form method="POST" action={actions.deleteTemplate}>
-                        <input type="hidden" name="id" value={template.id} />
-                        <button class="text-xs text-red-600 hover:underline">
-                          {t.templates.remove}
-                        </button>
-                      </form>
+                      <button
+                        data-modal-open={`tpl-delete-${template.id}`}
+                        title={t.templates.remove}
+                        aria-label={t.templates.remove}
+                        class="text-neutral-400 hover:text-red-600"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
+                      </button>
                     </>
                   )}
                 </span>
@@ -95,6 +113,32 @@ const badgeClass =
     }
   </main>
 
+  {
+    TEMPLATE_KINDS.flatMap((kind) => templatesByKind[kind].filter((tpl) => !tpl.builtIn)).map(
+      (template) => (
+        <Modal id={`tpl-delete-${template.id}`} title={t.templates.deleteConfirmTitle}>
+          <div class="flex flex-col gap-3">
+            <p class="text-sm">{t.templates.deleteConfirmBody(template.name)}</p>
+            <div class="flex justify-end gap-2">
+              <button
+                type="button"
+                data-modal-close
+                class="rounded border border-line px-3 py-1.5 text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                {t.ui.cancel}
+              </button>
+              <form method="POST" action={actions.deleteTemplate}>
+                <input type="hidden" name="id" value={template.id} />
+                <button class="rounded bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
+                  {t.templates.remove}
+                </button>
+              </form>
+            </div>
+          </div>
+        </Modal>
+      ),
+    )
+  }
   {
     TEMPLATE_KINDS.map((kind) => (
       <Modal id={`tpl-new-${kind}`} title={t.templates.newModalTitle(kind)} size="lg">
