@@ -11,7 +11,7 @@ import SpecReferences from "../../../components/SpecReferences.astro";
 import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
 import { claudeInterviewAvailable } from "../../../lib/claude";
-import { syncDetectedCliProviders } from "../../../lib/cli-providers";
+import { syncDetectedLocalProviders } from "../../../lib/local-providers";
 import { listTemplates } from "../../../lib/templates";
 import { findExecutableOnPath } from "@specpasa/providers/node";
 import { type TemplateKind } from "@specpasa/core";
@@ -51,7 +51,7 @@ const current = spec.current_version_id
 const { workspace, role } = await getMembership(Astro.locals.user!.id);
 // Supported CLIs on PATH become providers automatically (opt-out = disable
 // in settings) — so a newly installed agent works here without any setup.
-if (canEdit(role)) await syncDetectedCliProviders(workspace);
+if (canEdit(role)) await syncDetectedLocalProviders(workspace);
 const providerConfigs = await db
   .select()
   .from(schema.ai_provider_configs)

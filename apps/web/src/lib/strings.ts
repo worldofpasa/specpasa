@@ -154,7 +154,7 @@ export const t = {
     deleteConfirmBody: (name: string) =>
       `Remove ${name}? It disappears from every AI picker — existing versions keep their history.`,
     deleteConfirmCliNote:
-      "This CLI is still installed on this host, so it will be re-added automatically on the next visit. Disable it instead if you want it to stay off — or turn off auto-detect entirely.",
+      "This backend is still detected on this host, so it will be re-added automatically on the next visit. Disable it instead if you want it to stay off — or turn off auto-detect entirely.",
     autoDetectLabel: "Auto-detect",
     autoDetectOff:
       "Auto-detect is off — nothing on this host is probed, and no providers are added automatically.",
@@ -169,6 +169,7 @@ export const t = {
     modelPlaceholder: "Model (e.g. llama3.2)",
     baseUrlPlaceholder: "Base URL (default http://localhost:11434)",
     autoAddedName: (command: string) => `${command} CLI`,
+    autoAddedOllamaName: (model: string) => `Ollama (${model})`,
     localCliNote: "Runs the CLI on this host — nothing leaves the machine, no API key needed.",
     displayNameLocalCli: "Display name (e.g. Claude CLI)",
     cliCommandLabel: "Command",

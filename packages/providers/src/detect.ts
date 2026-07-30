@@ -22,6 +22,7 @@ export async function detectLocalProviders(
         name: "Ollama",
         detail: models.length ? `models: ${models.join(", ")}` : "running, no models pulled",
         models,
+        baseUrl: ollamaBaseUrl,
       });
     }
   } catch {
