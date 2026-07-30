@@ -4,7 +4,7 @@ import { detectLocalProvidersNode, SUPPORTED_CLI_COMMANDS } from "@specpasa/prov
 import Base from "../../layouts/Base.astro";
 import Modal from "../../components/Modal.astro";
 import { getWorkspace } from "../../lib/auth";
-import { autoDetectEnabled, syncDetectedCliProviders } from "../../lib/cli-providers";
+import { autoDetectEnabled, syncDetectedLocalProviders } from "../../lib/local-providers";
 import { getDb, schema, desc, eq } from "../../lib/db";
 import { t } from "../../lib/strings";
 
@@ -24,7 +24,7 @@ const actionError = actionResult?.error?.message;
 // below (not deleting it) is the opt-out that sticks. The whole probe can be
 // turned off with the auto-detect switch.
 const autoDetect = autoDetectEnabled(workspace);
-await syncDetectedCliProviders(workspace);
+await syncDetectedLocalProviders(workspace);
 
 const configs = await getDb()
   .select()
@@ -33,7 +33,16 @@ const configs = await getDb()
   .orderBy(desc(schema.ai_provider_configs.created_at));
 
 const detected = autoDetect ? await detectLocalProvidersNode() : [];
-const ollamaModels = detected.find((entry) => entry.kind === "ollama")?.models ?? [];
+const ollamaDetected = detected.find((entry) => entry.kind === "ollama");
+const ollamaModels = ollamaDetected?.models ?? [];
+
+// Deleting the last row of a still-detected backend is futile — auto-
+// provisioning re-adds it on the next load. The confirmation warns and
+// points at Disable (or the auto-detect switch) as the sticky opt-out.
+const ollamaRowCount = configs.filter((config) => config.kind === "ollama").length;
+const willBeReProvisioned = (config: (typeof configs)[number]): boolean =>
+  cliStillDetected(config) ||
+  (config.kind === "ollama" && ollamaModels.length > 0 && ollamaRowCount === 1);
 // Deleting a CLI row whose binary is still on PATH is allowed but futile —
 // auto-provisioning re-adds it on the next load. The delete confirmation
 // warns about exactly this and points at Disable as the sticky opt-out.
@@ -227,7 +236,7 @@ const submitClass =
       <Modal id={`delete-provider-${config.id}`} title={t.providers.deleteConfirmTitle}>
         <div class="flex flex-col gap-3">
           <p class="text-sm">{t.providers.deleteConfirmBody(config.name)}</p>
-          {cliStillDetected(config) && (
+          {willBeReProvisioned(config) && (
             <p class="text-xs text-review">{t.providers.deleteConfirmCliNote}</p>
           )}
           <div class="flex justify-end gap-2">
@@ -263,7 +272,13 @@ const submitClass =
   <Modal id="add-ollama-modal" title={t.providers.addOllama}>
     <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3">
       <input type="hidden" name="kind" value="ollama" />
-      <input name="name" required placeholder={t.providers.displayNameOllama} class={inputClass} />
+      <input
+        name="name"
+        required
+        value={ollamaModels[0] ? t.providers.autoAddedOllamaName(ollamaModels[0]) : ""}
+        placeholder={t.providers.displayNameOllama}
+        class={inputClass}
+      />
       <input
         name="model"
         required
@@ -280,7 +295,12 @@ const submitClass =
           <p class="text-xs text-neutral-500">{t.providers.ollamaModelsDetected}</p>
         )
       }
-      <input name="baseUrl" placeholder={t.providers.baseUrlPlaceholder} class={inputClass} />
+      <input
+        name="baseUrl"
+        value={ollamaDetected?.baseUrl ?? ""}
+        placeholder={t.providers.baseUrlPlaceholder}
+        class={inputClass}
+      />
       <button class={submitClass}>{t.providers.add}</button>
     </form>
   </Modal>
