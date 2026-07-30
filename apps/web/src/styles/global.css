@@ -10,8 +10,9 @@
 /*
  * "Worksurface" design system — the enterprise successor to "The Study"
  * (design epic #11). Optimized for long-session editing: one legible UI
- * face (Inter) at regular case, cool neutral surfaces, a single restrained
- * blue accent, and mono reserved for code, IDs, and version numbers.
+ * face (Inter) at regular case, mint-tinted neutral surfaces with a single
+ * mint-teal accent (WCAG AA on white), and mono reserved for code, IDs,
+ * and version numbers.
  *
  * Dark mode is driven by data-theme on <html>, stamped before paint by the
  * inline script in Base.astro (localStorage override, OS preference default).
@@ -20,12 +21,12 @@
 
 /* Theme-switching semantic tokens: one class works in both themes. */
 :root {
-  --th-paper: #f4f5f7;
-  --th-sheet: #ffffff;
-  --th-ink: #1f2329;
-  --th-line: #e2e5ea;
-  --th-accent: #2563eb;
-  --th-accent-soft: #e8effd;
+  --th-paper: #e4efec;
+  --th-sheet: #fbfdfc;
+  --th-ink: #24303a;
+  --th-line: #cfdeda;
+  --th-accent: #1f7a6d;
+  --th-accent-soft: #d9ebe6;
   --th-on-accent: #ffffff;
   --th-review: #9a6700;
   --th-review-soft: #faf0d3;
@@ -34,12 +35,12 @@
   --th-clay: #b0563c;
 }
 :root[data-theme="dark"] {
-  --th-paper: #12161b;
-  --th-sheet: #1a2027;
-  --th-ink: #e3e7ec;
-  --th-line: #2c343e;
-  --th-accent: #7aa5f8;
-  --th-accent-soft: #1e2c47;
+  --th-paper: #131a19;
+  --th-sheet: #1b2422;
+  --th-ink: #e2ebe8;
+  --th-line: #2c3a37;
+  --th-accent: #7ecfc0;
+  --th-accent-soft: #1e332f;
   --th-on-accent: #10151c;
   --th-review: #d4a72c;
   --th-review-soft: #372c12;
