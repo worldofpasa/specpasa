@@ -21,6 +21,7 @@ export async function detectLocalProviders(
         kind: "ollama",
         name: "Ollama",
         detail: models.length ? `models: ${models.join(", ")}` : "running, no models pulled",
+        models,
       });
     }
   } catch {

@@ -51,7 +51,7 @@ const current = spec.current_version_id
 const { workspace, role } = await getMembership(Astro.locals.user!.id);
 // Supported CLIs on PATH become providers automatically (opt-out = disable
 // in settings) — so a newly installed agent works here without any setup.
-if (canEdit(role)) await syncDetectedCliProviders(workspace.id);
+if (canEdit(role)) await syncDetectedCliProviders(workspace);
 const providerConfigs = await db
   .select()
   .from(schema.ai_provider_configs)

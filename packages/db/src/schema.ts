@@ -33,6 +33,9 @@ export const workspaces = sqliteTable("workspaces", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  // Workspace preferences (e.g. auto_detect: false turns off local AI
+  // probing/auto-provisioning). Absent keys mean the default behavior.
+  settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>(),
   created_by: text("created_by")
     .notNull()
     .references(() => users.id),

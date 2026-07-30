@@ -156,7 +156,11 @@ export const t = {
     deleteConfirmBody: (name: string) =>
       `Remove ${name}? It disappears from every AI picker — existing versions keep their history.`,
     deleteConfirmCliNote:
-      "This CLI is still installed on this host, so it will be re-added automatically on the next visit. Disable it instead if you want it to stay off.",
+      "This CLI is still installed on this host, so it will be re-added automatically on the next visit. Disable it instead if you want it to stay off — or turn off auto-detect entirely.",
+    autoDetectLabel: "Auto-detect",
+    autoDetectOff:
+      "Auto-detect is off — nothing on this host is probed, and no providers are added automatically.",
+    ollamaModelsDetected: "Pick from the models detected on this host, or type another.",
     nothingDetected:
       "No local AI backends detected — looked for Ollama on localhost:11434 and the claude, codex, cursor-agent, and grok CLIs on PATH.",
     empty: "No providers configured yet.",

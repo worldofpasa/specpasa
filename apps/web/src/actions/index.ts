@@ -602,9 +602,35 @@ export const server = {
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
       await requireEditor(context);
-      await getDb()
+      const db = getDb();
+      // Versions that credit this provider keep their ai_generated flag but
+      // drop the FK — deletion must not fail (or dangle) on referenced rows.
+      await db
+        .update(schema.spec_versions)
+        .set({ ai_provider_config_id: null })
+        .where(eq(schema.spec_versions.ai_provider_config_id, input.id));
+      await db
         .delete(schema.ai_provider_configs)
         .where(eq(schema.ai_provider_configs.id, input.id));
+      return { ok: true };
+    },
+  }),
+
+  /** Workspace-level switch for local AI auto-detection (probe + CLI
+   * auto-provisioning). Off means nothing is probed or added on its own. */
+  setAutoDetect: defineAction({
+    accept: "form",
+    input: z.object({ enabled: z.enum(["true", "false"]) }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      await getDb()
+        .update(schema.workspaces)
+        .set({
+          settings: { ...workspace.settings, auto_detect: input.enabled === "true" },
+          updated_at: now(),
+        })
+        .where(eq(schema.workspaces.id, workspace.id));
       return { ok: true };
     },
   }),

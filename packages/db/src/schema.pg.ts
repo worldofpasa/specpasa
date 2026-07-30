@@ -46,6 +46,7 @@ export const workspaces = pgTable("workspaces", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
+  settings: json("settings").$type<Record<string, unknown>>(),
   created_by: text("created_by")
     .notNull()
     .references(() => users.id),

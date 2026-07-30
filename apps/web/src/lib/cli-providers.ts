@@ -3,15 +3,28 @@ import { findExecutableOnPath, SUPPORTED_CLI_COMMANDS } from "@specpasa/provider
 import { getDb, schema, and, eq, isNull, or } from "./db";
 import { t } from "./strings";
 
+/** Auto-detect defaults ON; the workspace opts out via settings. */
+export function autoDetectEnabled(workspace: {
+  settings: Record<string, unknown> | null;
+}): boolean {
+  return workspace.settings?.auto_detect !== false;
+}
+
 /**
  * Auto-provision local CLI providers (FR-AI-5): every supported CLI found on
  * this host's PATH gets an enabled config row the first time it is seen, so
  * detected agents are usable instantly — no manual add step. Opting out is
  * DISABLING the row in settings, never deleting it: any existing row
  * (enabled or not, workspace or global) blocks re-provisioning, so a
- * disabled CLI stays disabled across restarts and re-detections.
+ * disabled CLI stays disabled across restarts and re-detections. The whole
+ * mechanism can be turned off per workspace (settings.auto_detect = false).
  */
-export async function syncDetectedCliProviders(workspaceId: string): Promise<void> {
+export async function syncDetectedCliProviders(workspace: {
+  id: string;
+  settings: Record<string, unknown> | null;
+}): Promise<void> {
+  if (!autoDetectEnabled(workspace)) return;
+  const workspaceId = workspace.id;
   const detected = SUPPORTED_CLI_COMMANDS.filter((command) => findExecutableOnPath(command));
   if (detected.length === 0) return;
   const db = getDb();

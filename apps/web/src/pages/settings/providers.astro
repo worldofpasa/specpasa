@@ -4,15 +4,27 @@ import { detectLocalProvidersNode, SUPPORTED_CLI_COMMANDS } from "@specpasa/prov
 import Base from "../../layouts/Base.astro";
 import Modal from "../../components/Modal.astro";
 import { getWorkspace } from "../../lib/auth";
-import { syncDetectedCliProviders } from "../../lib/cli-providers";
+import { autoDetectEnabled, syncDetectedCliProviders } from "../../lib/cli-providers";
 import { getDb, schema, desc, eq } from "../../lib/db";
 import { t } from "../../lib/strings";
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
 
+// Surface action failures instead of swallowing them (a failed add used to
+// look like nothing happened); successes redirect (PRG) so reloads are safe.
+const actionResult =
+  Astro.getActionResult(actions.saveProviderConfig) ??
+  Astro.getActionResult(actions.deleteProviderConfig) ??
+  Astro.getActionResult(actions.setProviderEnabled) ??
+  Astro.getActionResult(actions.setAutoDetect);
+if (actionResult && !actionResult.error) return Astro.redirect("/settings/providers");
+const actionError = actionResult?.error?.message;
+
 // Supported CLIs on PATH become providers automatically; disabling a row
-// below (not deleting it) is the opt-out that sticks.
-await syncDetectedCliProviders(workspace.id);
+// below (not deleting it) is the opt-out that sticks. The whole probe can be
+// turned off with the auto-detect switch.
+const autoDetect = autoDetectEnabled(workspace);
+await syncDetectedCliProviders(workspace);
 
 const configs = await getDb()
   .select()
@@ -20,7 +32,8 @@ const configs = await getDb()
   .where(eq(schema.ai_provider_configs.workspace_id, workspace.id))
   .orderBy(desc(schema.ai_provider_configs.created_at));
 
-const detected = await detectLocalProvidersNode();
+const detected = autoDetect ? await detectLocalProvidersNode() : [];
+const ollamaModels = detected.find((entry) => entry.kind === "ollama")?.models ?? [];
 // Deleting a CLI row whose binary is still on PATH is allowed but futile —
 // auto-provisioning re-adds it on the next load. The delete confirmation
 // warns about exactly this and points at Disable as the sticky opt-out.
@@ -70,15 +83,48 @@ const submitClass =
       </div>
     </header>
 
+    {
+      actionError && (
+        <p class="mt-4 rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          {actionError}
+        </p>
+      )
+    }
+
     <section class="mt-6 rounded border border-line bg-sheet">
-      <h2
-        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
-      >
-        {t.providers.detectedHeading}
-      </h2>
+      <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
+        <h2 class="text-xs font-semibold text-neutral-500">
+          {t.providers.detectedHeading}
+        </h2>
+        <form method="POST" action={actions.setAutoDetect} class="flex items-center gap-2">
+          <span class="text-[11px] font-medium text-neutral-500">
+            {t.providers.autoDetectLabel}
+          </span>
+          <input type="hidden" name="enabled" value={autoDetect ? "false" : "true"} />
+          <button
+            role="switch"
+            aria-checked={autoDetect}
+            title={t.providers.autoDetectLabel}
+            aria-label={t.providers.autoDetectLabel}
+            class:list={[
+              "relative h-5 w-9 rounded-full transition-colors",
+              autoDetect ? "bg-accent" : "bg-neutral-300 dark:bg-neutral-600",
+            ]}
+          >
+            <span
+              class:list={[
+                "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+                autoDetect ? "left-[18px]" : "left-0.5",
+              ]}
+            />
+          </button>
+        </form>
+      </div>
       <div class="px-4 py-3 text-sm">
         {
-          detected.length > 0 ? (
+          !autoDetect ? (
+            <p class="text-neutral-500">{t.providers.autoDetectOff}</p>
+          ) : detected.length > 0 ? (
             <>
               {detected.map((entry) => (
                 <p class="py-0.5 text-accent">{t.providers.detectedItem(entry.name, entry.detail)}</p>
@@ -218,7 +264,22 @@ const submitClass =
     <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3">
       <input type="hidden" name="kind" value="ollama" />
       <input name="name" required placeholder={t.providers.displayNameOllama} class={inputClass} />
-      <input name="model" required placeholder={t.providers.modelPlaceholder} class={inputClass} />
+      <input
+        name="model"
+        required
+        list="ollama-detected-models"
+        value={ollamaModels[0] ?? ""}
+        placeholder={t.providers.modelPlaceholder}
+        class={inputClass}
+      />
+      <datalist id="ollama-detected-models">
+        {ollamaModels.map((model) => <option value={model} />)}
+      </datalist>
+      {
+        ollamaModels.length > 0 && (
+          <p class="text-xs text-neutral-500">{t.providers.ollamaModelsDetected}</p>
+        )
+      }
       <input name="baseUrl" placeholder={t.providers.baseUrlPlaceholder} class={inputClass} />
       <button class={submitClass}>{t.providers.add}</button>
     </form>
