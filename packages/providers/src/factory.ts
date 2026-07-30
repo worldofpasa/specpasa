@@ -1,6 +1,7 @@
 import { assertNever, type AiProviderKind } from "@specpasa/core";
 import { createAnthropicAgent } from "./anthropic.js";
 import { createOllamaAgent } from "./ollama.js";
+import { createOpenAiCompatibleAgent } from "./openai-compatible.js";
 import { type SpecAgent } from "./types.js";
 
 /** Kinds with a working adapter today. Widen as adapters land (never wider
@@ -9,6 +10,9 @@ export const IMPLEMENTED_AI_PROVIDER_KINDS = [
   "anthropic",
   "ollama",
   "local_cli",
+  "openai_compatible",
+  "openrouter",
+  "google",
 ] as const satisfies readonly AiProviderKind[];
 export type ImplementedAiProviderKind = (typeof IMPLEMENTED_AI_PROVIDER_KINDS)[number];
 
@@ -48,6 +52,39 @@ function ollamaFromConfig(config: AgentConfigInput): SpecAgent {
   return createOllamaAgent({ model: config.model, baseUrl: config.baseUrl ?? undefined });
 }
 
+/** Kinds served by the OpenAI-compatible adapter. `openrouter` and `google`
+ * are presets with a fixed API root; `openai_compatible` is bring-your-own
+ * base URL (OpenAI, xAI, Cohere, Together, LM Studio, vLLM, …). */
+export const OPENAI_COMPAT_PRESETS = {
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", requiresKey: true },
+  google: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    requiresKey: true,
+  },
+  openai_compatible: { baseUrl: null, requiresKey: false },
+} as const satisfies Partial<Record<AiProviderKind, { baseUrl: string | null; requiresKey: boolean }>>;
+
+export type OpenAiCompatibleKind = keyof typeof OPENAI_COMPAT_PRESETS;
+
+function openaiCompatibleFromConfig(
+  config: AgentConfigInput,
+  kind: OpenAiCompatibleKind,
+): SpecAgent {
+  const preset = OPENAI_COMPAT_PRESETS[kind];
+  const baseUrl = config.baseUrl ?? preset.baseUrl;
+  if (!baseUrl) throw new ProviderConfigError(`Provider "${kind}" requires a base URL`);
+  if (!config.model) throw new ProviderConfigError(`Provider "${kind}" requires a model`);
+  if (preset.requiresKey && !config.apiKey) {
+    throw new ProviderConfigError(`Provider "${kind}" requires an API key`);
+  }
+  return createOpenAiCompatibleAgent({
+    baseUrl,
+    model: config.model,
+    apiKey: config.apiKey ?? undefined,
+    kind,
+  });
+}
+
 /**
  * The single dispatch point from a stored provider config to a SpecAgent
  * (ADR-4). The switch is exhaustive over AiProviderKind: adding a new kind
@@ -62,7 +99,7 @@ export function createSpecAgent(config: AgentConfigInput): SpecAgent {
     case "openai_compatible":
     case "openrouter":
     case "google":
-      throw new ProviderNotImplementedError(config.kind, "M2+");
+      return openaiCompatibleFromConfig(config, config.kind);
     case "local_cli":
       throw new ProviderRequiresNodeError(config.kind);
     default:

@@ -6,6 +6,7 @@ import Modal from "../../components/Modal.astro";
 import { getWorkspace } from "../../lib/auth";
 import { autoDetectEnabled, syncDetectedCliProviders } from "../../lib/cli-providers";
 import { getDb, schema, desc, eq } from "../../lib/db";
+import { CLOUD_PROVIDER_PRESETS } from "../../lib/provider-presets";
 import { t } from "../../lib/strings";
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
@@ -14,6 +15,7 @@ const workspace = await getWorkspace(Astro.locals.user!.id);
 // look like nothing happened); successes redirect (PRG) so reloads are safe.
 const actionResult =
   Astro.getActionResult(actions.saveProviderConfig) ??
+  Astro.getActionResult(actions.updateProviderConfig) ??
   Astro.getActionResult(actions.deleteProviderConfig) ??
   Astro.getActionResult(actions.setProviderEnabled) ??
   Astro.getActionResult(actions.setAutoDetect);
@@ -67,6 +69,12 @@ const submitClass =
           class="rounded bg-accent px-3 py-2 text-sm font-semibold text-on-accent hover:opacity-90"
         >
           {t.providers.addAnthropic}
+        </button>
+        <button
+          data-modal-open="add-cloud-modal"
+          class="rounded border border-line px-3 py-2 text-sm font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          {t.providers.addCloud}
         </button>
         <button
           data-modal-open="add-ollama-modal"
@@ -190,6 +198,27 @@ const submitClass =
                   </button>
                 </form>
                 <button
+                  data-modal-open={`edit-provider-${config.id}`}
+                  title={t.providers.editProvider(config.name)}
+                  aria-label={t.providers.editProvider(config.name)}
+                  class="text-neutral-400 hover:text-accent"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    <path d="m15 5 4 4" />
+                  </svg>
+                </button>
+                <button
                   data-modal-open={`delete-provider-${config.id}`}
                   title={t.providers.remove}
                   aria-label={t.providers.remove}
@@ -250,11 +279,135 @@ const submitClass =
     ))
   }
 
+  {
+    configs.map((config) => (
+      <Modal id={`edit-provider-${config.id}`} title={t.providers.editProvider(config.name)}>
+        <form
+          method="POST"
+          action={actions.updateProviderConfig}
+          data-models-list={`edit-models-${config.id}`}
+          data-provider-id={config.id}
+          class="flex flex-col gap-3"
+        >
+          <input type="hidden" name="id" value={config.id} />
+          <input name="name" required value={config.name} class={inputClass} />
+          {config.kind !== "local_cli" && (
+            <>
+              <input
+                name="model"
+                required
+                list={`edit-models-${config.id}`}
+                value={config.model ?? ""}
+                placeholder={t.providers.cloudModelPlaceholder}
+                class={inputClass}
+              />
+              <datalist id={`edit-models-${config.id}`} />
+              <p class="text-xs text-neutral-500">{t.providers.modelListHint}</p>
+            </>
+          )}
+          {config.kind !== "local_cli" && config.kind !== "anthropic" && (
+            <input
+              name="baseUrl"
+              value={config.base_url ?? ""}
+              placeholder={
+                config.kind === "ollama"
+                  ? t.providers.baseUrlPlaceholder
+                  : t.providers.cloudBaseUrlPlaceholder
+              }
+              class={inputClass}
+            />
+          )}
+          {config.kind !== "local_cli" && config.kind !== "ollama" && (
+            <>
+              <input
+                name="apiKey"
+                type="password"
+                placeholder={t.providers.apiKeyPlaceholder}
+                class={inputClass}
+              />
+              {config.encrypted_credentials && (
+                <p class="text-xs text-neutral-500">{t.providers.keyKeepNote}</p>
+              )}
+            </>
+          )}
+          <button class={submitClass}>{t.providers.save}</button>
+        </form>
+      </Modal>
+    ))
+  }
+
+  <Modal id="add-cloud-modal" title={t.providers.addCloud} size="lg">
+    <div class="flex flex-col gap-3">
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-xs font-medium text-neutral-500">{t.providers.presetLabel}</span>
+        <select
+          data-preset-picker
+          class="rounded border border-line bg-transparent px-2 py-1.5 text-sm"
+        >
+          {CLOUD_PROVIDER_PRESETS.map((preset) => <option value={preset.id}>{preset.label}</option>)}
+        </select>
+      </label>
+      {
+        CLOUD_PROVIDER_PRESETS.map((preset, index) => (
+          <form
+            method="POST"
+            action={actions.saveProviderConfig}
+            data-preset-form={preset.id}
+            data-models-list={`cloud-models-${preset.id}`}
+            data-kind={preset.kind}
+            hidden={index !== 0}
+            class="flex flex-col gap-3"
+          >
+            <input type="hidden" name="kind" value={preset.kind} />
+            <input name="name" required value={preset.id === "custom" ? "" : preset.label.split(" (")[0]} placeholder={t.providers.displayNameCloud} class={inputClass} />
+            {preset.baseUrl ? (
+              <input type="hidden" name="baseUrl" value={preset.baseUrl} />
+            ) : (
+              <input
+                name="baseUrl"
+                required
+                placeholder={t.providers.cloudBaseUrlPlaceholder}
+                class={inputClass}
+              />
+            )}
+            <input
+              name="model"
+              required
+              list={`cloud-models-${preset.id}`}
+              placeholder={t.providers.cloudModelPlaceholder}
+              class={inputClass}
+            />
+            <datalist id={`cloud-models-${preset.id}`} />
+            <input
+              name="apiKey"
+              required={preset.requiresKey}
+              type="password"
+              placeholder={t.providers.apiKeyPlaceholder}
+              class={inputClass}
+            />
+            {!preset.requiresKey && (
+              <p class="text-xs text-neutral-500">{t.providers.cloudKeyOptionalNote}</p>
+            )}
+            <p class="text-xs text-neutral-500">{t.providers.modelListHint}</p>
+            <button class={submitClass}>{t.providers.add}</button>
+          </form>
+        ))
+      }
+    </div>
+  </Modal>
+
   <Modal id="add-anthropic-modal" title={t.providers.addAnthropic}>
-    <form method="POST" action={actions.saveProviderConfig} class="flex flex-col gap-3">
+    <form
+      method="POST"
+      action={actions.saveProviderConfig}
+      data-models-list="add-anthropic-models"
+      data-kind="anthropic"
+      class="flex flex-col gap-3"
+    >
       <input type="hidden" name="kind" value="anthropic" />
       <input name="name" required placeholder={t.providers.displayNameAnthropic} class={inputClass} />
-      <input name="model" required value="claude-opus-4-8" class={inputClass} />
+      <input name="model" required value="claude-opus-4-8" list="add-anthropic-models" class={inputClass} />
+      <datalist id="add-anthropic-models" />
       <input name="apiKey" required type="password" placeholder={t.providers.apiKeyPlaceholder} class={inputClass} />
       <button class={submitClass}>{t.providers.add}</button>
     </form>
@@ -302,3 +455,71 @@ const submitClass =
     </form>
   </Modal>
 </Base>
+
+<script>
+  // Model suggestions: forms tagged data-models-list get their <datalist>
+  // filled from POST /api/providers/models — on first open, and again when
+  // the form's baseUrl/apiKey change. Failures leave free-text intact.
+  const filled = new WeakSet<HTMLFormElement>();
+
+  async function fillModels(form: HTMLFormElement): Promise<void> {
+    const datalist = document.getElementById(form.dataset.modelsList ?? "");
+    if (!datalist) return;
+    const field = (name: string) =>
+      form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value || undefined;
+    const payload = form.dataset.providerId
+      ? { providerId: form.dataset.providerId }
+      : { kind: form.dataset.kind, baseUrl: field("baseUrl"), apiKey: field("apiKey") };
+    try {
+      const response = await fetch("/api/providers/models", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) return;
+      const { models } = (await response.json()) as { models: { id: string; label: string }[] };
+      datalist.replaceChildren(
+        ...models.map((model) => {
+          const option = document.createElement("option");
+          option.value = model.id;
+          if (model.label !== model.id) option.label = model.label;
+          return option;
+        }),
+      );
+    } catch {
+      // Endpoint unreachable — the input stays free-text.
+    }
+  }
+
+  function activate(form: HTMLFormElement): void {
+    if (form.hidden || filled.has(form)) return;
+    filled.add(form);
+    void fillModels(form);
+    form.addEventListener("change", (event) => {
+      const name = event.target instanceof HTMLInputElement ? event.target.name : "";
+      if (name === "baseUrl" || name === "apiKey") void fillModels(form);
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const opener = target.closest?.("[data-modal-open]");
+    if (!(opener instanceof HTMLElement)) return;
+    const dialog = document.getElementById(opener.dataset.modalOpen ?? "");
+    dialog
+      ?.querySelectorAll<HTMLFormElement>("form[data-models-list]")
+      .forEach((form) => activate(form));
+  });
+
+  // Cloud add: one server-rendered form per preset, only the picked one shown.
+  document.addEventListener("change", (event) => {
+    const picker = event.target;
+    if (!(picker instanceof HTMLSelectElement) || !picker.hasAttribute("data-preset-picker"))
+      return;
+    document.querySelectorAll<HTMLFormElement>("form[data-preset-form]").forEach((form) => {
+      const match = form.dataset.presetForm === picker.value;
+      form.hidden = !match;
+      if (match) activate(form);
+    });
+  });
+</script>

@@ -105,21 +105,35 @@ async function requireEditor(context: { session?: { get(key: string): Promise<un
   return userId;
 }
 
-/** Per-kind requirements (mirrors the factory's ProviderConfigError guards). */
-function validateProviderInput(input: {
-  kind: string;
-  apiKey?: string;
-  model?: string;
-  cliCommand?: string;
-}): void {
-  if (input.kind === "anthropic" && !input.apiKey) {
-    throw new ActionError({ code: "BAD_REQUEST", message: "Anthropic requires an API key" });
+const KEY_REQUIRED_KINDS = new Set(["anthropic", "openrouter", "google"]);
+
+function badRequest(message: string): never {
+  throw new ActionError({ code: "BAD_REQUEST", message });
+}
+
+/** Per-kind requirements (mirrors the factory's ProviderConfigError guards).
+ * `hasStoredKey` lets updates keep an already-encrypted key instead of
+ * demanding it be retyped. */
+function validateProviderInput(
+  input: {
+    kind: string;
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+    cliCommand?: string;
+  },
+  hasStoredKey = false,
+): void {
+  if (KEY_REQUIRED_KINDS.has(input.kind) && !input.apiKey && !hasStoredKey) {
+    badRequest("This provider requires an API key");
   }
-  if ((input.kind === "anthropic" || input.kind === "ollama") && !input.model) {
-    throw new ActionError({ code: "BAD_REQUEST", message: "This provider requires a model" });
+  if (input.kind === "local_cli") {
+    if (!input.cliCommand) badRequest("Pick which CLI to use");
+    return;
   }
-  if (input.kind === "local_cli" && !input.cliCommand) {
-    throw new ActionError({ code: "BAD_REQUEST", message: "Pick which CLI to use" });
+  if (!input.model) badRequest("This provider requires a model");
+  if (input.kind === "openai_compatible" && !input.baseUrl) {
+    badRequest("This provider requires a base URL");
   }
 }
 
@@ -480,6 +494,59 @@ export const server = {
     },
   }),
 
+  /** Edit an existing provider in place. kind and cli_command are immutable
+   * (change of kind = remove + re-add); a blank apiKey keeps the stored key. */
+  updateProviderConfig: defineAction({
+    accept: "form",
+    input: z.object({
+      id: z.string(),
+      name: z.string().min(1),
+      model: z.string().optional(),
+      baseUrl: z.string().optional(),
+      apiKey: z.string().optional(),
+    }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      const db = getDb();
+      const [config] = await db
+        .select()
+        .from(schema.ai_provider_configs)
+        .where(
+          and(
+            eq(schema.ai_provider_configs.id, input.id),
+            eq(schema.ai_provider_configs.workspace_id, workspace.id),
+          ),
+        );
+      if (!config) {
+        throw new ActionError({ code: "NOT_FOUND", message: "Provider not found" });
+      }
+      validateProviderInput(
+        {
+          kind: config.kind,
+          apiKey: input.apiKey,
+          model: input.model,
+          baseUrl: input.baseUrl ?? config.base_url ?? undefined,
+          cliCommand: config.cli_command ?? undefined,
+        },
+        config.encrypted_credentials !== null,
+      );
+      await db
+        .update(schema.ai_provider_configs)
+        .set({
+          name: input.name,
+          model: input.model || null,
+          base_url: input.baseUrl || config.base_url,
+          ...(input.apiKey
+            ? { encrypted_credentials: await encryptSecret(input.apiKey, SPECPASA_SECRET) }
+            : {}),
+          updated_at: now(),
+        })
+        .where(eq(schema.ai_provider_configs.id, config.id));
+      return { id: config.id };
+    },
+  }),
+
   saveTemplate: defineAction({
     accept: "form",
     input: z.object({
@@ -601,17 +668,32 @@ export const server = {
     accept: "form",
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
-      await requireEditor(context);
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
       const db = getDb();
+      // Scope to the caller's workspace before mutating anything — an id
+      // alone must not reach across workspaces.
+      const [config] = await db
+        .select({ id: schema.ai_provider_configs.id })
+        .from(schema.ai_provider_configs)
+        .where(
+          and(
+            eq(schema.ai_provider_configs.id, input.id),
+            eq(schema.ai_provider_configs.workspace_id, workspace.id),
+          ),
+        );
+      if (!config) {
+        throw new ActionError({ code: "NOT_FOUND", message: "Provider not found" });
+      }
       // Versions that credit this provider keep their ai_generated flag but
       // drop the FK — deletion must not fail (or dangle) on referenced rows.
       await db
         .update(schema.spec_versions)
         .set({ ai_provider_config_id: null })
-        .where(eq(schema.spec_versions.ai_provider_config_id, input.id));
+        .where(eq(schema.spec_versions.ai_provider_config_id, config.id));
       await db
         .delete(schema.ai_provider_configs)
-        .where(eq(schema.ai_provider_configs.id, input.id));
+        .where(eq(schema.ai_provider_configs.id, config.id));
       return { ok: true };
     },
   }),
