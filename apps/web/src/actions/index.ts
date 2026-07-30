@@ -17,6 +17,7 @@ import {
   parseEpicsFromMarkdown,
   SPEC_START_PHASES,
   SPEC_STATUSES,
+  TEMPLATE_KINDS,
 } from "@specpasa/core";
 import { IntegrationError, type ExternalRecord, type TaskExportEpic } from "@specpasa/integrations";
 import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
@@ -24,7 +25,8 @@ import { findExecutableOnPath, SUPPORTED_CLI_COMMANDS } from "@specpasa/provider
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { specInWorkspace, threadSpecInWorkspace } from "../lib/authz";
 import { getDb, insertSpecVersion, schema, and, desc, eq } from "../lib/db";
-import { deriveNextPhaseSpec, placeholderSeedBlocks } from "../lib/derive";
+import { deriveNextPhaseSpec, seedMarkdownForPhase } from "../lib/derive";
+import { resolveDefaultTemplate } from "../lib/templates";
 import { provisionOwner } from "../lib/provision";
 import { buildSink, getGitHubIntegration, getSpecContext, withSpecLock } from "../lib/integrations";
 import { publishCommentsChanged } from "../lib/realtime";
@@ -478,14 +480,157 @@ export const server = {
     },
   }),
 
+  saveTemplate: defineAction({
+    accept: "form",
+    input: z.object({
+      id: z.string().optional(),
+      kind: z.enum(TEMPLATE_KINDS),
+      name: z.string().min(1),
+      content: z.string().optional(),
+      file: z.instanceof(File).optional(),
+    }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      // An uploaded .md file wins over the textarea — that's the import path.
+      const content =
+        input.file && input.file.size > 0 ? await input.file.text() : (input.content ?? "");
+      if (!content.trim()) {
+        throw new ActionError({ code: "BAD_REQUEST", message: t.templates.emptyContent });
+      }
+      const ts = now();
+      if (input.id) {
+        await getDb()
+          .update(schema.spec_templates)
+          .set({ name: input.name, content, updated_at: ts })
+          .where(
+            and(
+              eq(schema.spec_templates.id, input.id),
+              eq(schema.spec_templates.workspace_id, workspace.id),
+            ),
+          );
+        return { id: input.id };
+      }
+      const id = newId();
+      await getDb().insert(schema.spec_templates).values({
+        id,
+        workspace_id: workspace.id,
+        kind: input.kind,
+        name: input.name,
+        content,
+        created_by: userId,
+        created_at: ts,
+        updated_at: ts,
+      });
+      return { id };
+    },
+  }),
+
+  deleteTemplate: defineAction({
+    accept: "form",
+    input: z.object({ id: z.string() }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      await getDb()
+        .delete(schema.spec_templates)
+        .where(
+          and(
+            eq(schema.spec_templates.id, input.id),
+            eq(schema.spec_templates.workspace_id, workspace.id),
+          ),
+        );
+      return { ok: true };
+    },
+  }),
+
+  /** Empty id reverts the kind to the built-in standard (no default rows). */
+  setDefaultTemplate: defineAction({
+    accept: "form",
+    input: z.object({ kind: z.enum(TEMPLATE_KINDS), id: z.string().optional() }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      const db = getDb();
+      await db
+        .update(schema.spec_templates)
+        .set({ is_default: false, updated_at: now() })
+        .where(
+          and(
+            eq(schema.spec_templates.workspace_id, workspace.id),
+            eq(schema.spec_templates.kind, input.kind),
+          ),
+        );
+      if (input.id) {
+        await db
+          .update(schema.spec_templates)
+          .set({ is_default: true, updated_at: now() })
+          .where(
+            and(
+              eq(schema.spec_templates.id, input.id),
+              eq(schema.spec_templates.workspace_id, workspace.id),
+            ),
+          );
+      }
+      return { ok: true };
+    },
+  }),
+
+  /** Disable/enable without deleting — the opt-out for auto-detected CLIs
+   * (a disabled row blocks re-provisioning; a deleted one would come back). */
+  setProviderEnabled: defineAction({
+    accept: "form",
+    input: z.object({ id: z.string(), enabled: z.enum(["true", "false"]) }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      await getDb()
+        .update(schema.ai_provider_configs)
+        .set({ enabled: input.enabled === "true", updated_at: now() })
+        .where(
+          and(
+            eq(schema.ai_provider_configs.id, input.id),
+            eq(schema.ai_provider_configs.workspace_id, workspace.id),
+          ),
+        );
+      return { ok: true };
+    },
+  }),
+
   deleteProviderConfig: defineAction({
     accept: "form",
     input: z.object({ id: z.string() }),
     handler: async (input, context) => {
       await requireEditor(context);
-      await getDb()
+      const db = getDb();
+      // Versions that credit this provider keep their ai_generated flag but
+      // drop the FK — deletion must not fail (or dangle) on referenced rows.
+      await db
+        .update(schema.spec_versions)
+        .set({ ai_provider_config_id: null })
+        .where(eq(schema.spec_versions.ai_provider_config_id, input.id));
+      await db
         .delete(schema.ai_provider_configs)
         .where(eq(schema.ai_provider_configs.id, input.id));
+      return { ok: true };
+    },
+  }),
+
+  /** Workspace-level switch for local AI auto-detection (probe + CLI
+   * auto-provisioning). Off means nothing is probed or added on its own. */
+  setAutoDetect: defineAction({
+    accept: "form",
+    input: z.object({ enabled: z.enum(["true", "false"]) }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      await getDb()
+        .update(schema.workspaces)
+        .set({
+          settings: { ...workspace.settings, auto_detect: input.enabled === "true" },
+          updated_at: now(),
+        })
+        .where(eq(schema.workspaces.id, workspace.id));
       return { ok: true };
     },
   }),
@@ -539,11 +684,16 @@ export const server = {
         .select()
         .from(schema.spec_versions)
         .where(eq(schema.spec_versions.id, spec.current_version_id!));
+      const workspace = await getWorkspace(userId);
+      // nextPhase never yields "draft" — advance targets are template kinds.
+      const template = await resolveDefaultTemplate(workspace.id, phase as "prd" | "erd" | "tasks");
       return await deriveNextPhaseSpec({
         spec,
         phase,
-        blocks: placeholderSeedBlocks(spec, phase, frozenVersion?.number ?? 0),
-        summary: t.lifecycle.derivedFrom(spec.phase),
+        seed: {
+          mode: "draft",
+          markdown: seedMarkdownForPhase(spec, phase, frozenVersion?.number ?? 0, template.content),
+        },
         userId,
       });
     },

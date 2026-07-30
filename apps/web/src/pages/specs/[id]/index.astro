@@ -11,6 +11,10 @@ import SpecReferences from "../../../components/SpecReferences.astro";
 import Connectors from "../../../components/Connectors.astro";
 import { getMembership } from "../../../lib/auth";
 import { claudeInterviewAvailable } from "../../../lib/claude";
+import { syncDetectedLocalProviders } from "../../../lib/local-providers";
+import { listTemplates } from "../../../lib/templates";
+import { findExecutableOnPath } from "@specpasa/providers/node";
+import { type TemplateKind } from "@specpasa/core";
 import { getDb, schema, asc, count, eq, isNull, or, and } from "../../../lib/db";
 import { pageTitle, t } from "../../../lib/strings";
 
@@ -45,6 +49,9 @@ const current = spec.current_version_id
   : undefined;
 
 const { workspace, role } = await getMembership(Astro.locals.user!.id);
+// Supported CLIs on PATH become providers automatically (opt-out = disable
+// in settings) — so a newly installed agent works here without any setup.
+if (canEdit(role)) await syncDetectedLocalProviders(workspace);
 const providerConfigs = await db
   .select()
   .from(schema.ai_provider_configs)
@@ -105,12 +112,50 @@ const versionNumbers = (
     .orderBy(asc(schema.spec_versions.number))
 ).map((row) => row.number);
 
+// Template options for a document with no versions yet: each option carries
+// the full editor seed (title heading, provenance note for derived specs,
+// then the template body). Byte-identical to what advancePhase writes into
+// the draft buffer, so the switcher can recognize an unedited template.
+let templateOptions: { id: string; name: string; seed: string; isDefault: boolean }[] = [];
+if (canEdit(role) && !current && spec.status !== "frozen" && spec.phase !== "draft") {
+  let seedPrefix = t.lifecycle.seedHeading(spec.title, spec.phase);
+  if (spec.derived_from_spec_id) {
+    const [source] = await db
+      .select()
+      .from(schema.specs)
+      .where(eq(schema.specs.id, spec.derived_from_spec_id));
+    const [sourceVersion] = source?.current_version_id
+      ? await db
+          .select({ number: schema.spec_versions.number })
+          .from(schema.spec_versions)
+          .where(eq(schema.spec_versions.id, source.current_version_id))
+      : [];
+    if (source) {
+      seedPrefix += `\n\n${t.lifecycle.seedNote(source.phase, sourceVersion?.number ?? 0)}`;
+    }
+  }
+  templateOptions = (await listTemplates(workspace.id, spec.phase as TemplateKind)).map(
+    (option) => ({
+      id: option.id,
+      name: option.name,
+      seed: `${seedPrefix}\n\n${option.content}`,
+      isDefault: option.isDefault,
+    }),
+  );
+}
+
 // Interview panel (draft phase) / AI phase conversion (frozen with a next
 // phase) — both need the local claude CLI plus a Claude CLI provider config.
 const claudeAvailable = canEdit(role) && (await claudeInterviewAvailable(workspace.id));
-const showInterview = claudeAvailable && spec.phase === "draft" && spec.status !== "frozen";
+const wouldInterview = spec.phase === "draft" && spec.status !== "frozen";
+const showInterview = claudeAvailable && wouldInterview;
 const phaseAfter = nextPhase(spec.phase);
-const showConvert = claudeAvailable && canAdvancePhase(spec) && phaseAfter !== null;
+const wouldConvert = canAdvancePhase(spec) && phaseAfter !== null;
+const showConvert = claudeAvailable && wouldConvert;
+// The AI path silently vanishing is worse than saying what's missing — when
+// the gate fails, show what would unlock it instead of hiding the panel.
+const showAiSetupHint = canEdit(role) && !claudeAvailable && (wouldInterview || wouldConvert);
+const claudeBinaryFound = showAiSetupHint && Boolean(findExecutableOnPath("claude"));
 const interviewSkills = [
   {
     name: "grilling",
@@ -187,7 +232,11 @@ const interviewSkills = [
             )
           }
           <PresenceChips client:load selfId={Astro.locals.user!.id} />
-          {canEdit(role) && <SpecLifecycle spec={spec} openThreads={openThreads} />}
+          {
+            canEdit(role) && (
+              <SpecLifecycle spec={spec} openThreads={openThreads} aiConvertAvailable={showConvert} />
+            )
+          }
         </div>
       </div>
     </header>
@@ -208,13 +257,34 @@ const interviewSkills = [
         }
         {
           showConvert && phaseAfter && (
-            <div class="mb-6">
+            <div class="mb-6" id="ai-convert">
               <InterviewPanel
                 client:load
                 specId={spec.id}
                 mode="convert"
                 nextPhaseLabel={t.phases.label(phaseAfter)}
               />
+            </div>
+          )
+        }
+        {
+          showAiSetupHint && (
+            <div class="mb-6 rounded border border-dashed border-line bg-sheet px-4 py-3">
+              <p class="text-xs font-semibold text-neutral-500">
+                {t.interview.convertHeading}
+              </p>
+              <p class="mt-1 text-sm text-neutral-500">
+                {wouldConvert && phaseAfter
+                  ? t.interview.unavailableConvert(t.phases.label(phaseAfter))
+                  : t.interview.unavailableInterview}{" "}
+                {claudeBinaryFound ? t.interview.unavailableNoConfig : t.interview.unavailableNoBinary}
+              </p>
+              <a
+                href="/settings/providers"
+                class="mt-2 inline-block text-sm font-semibold text-accent hover:underline"
+              >
+                {t.interview.unavailableCta}
+              </a>
             </div>
           )
         }
@@ -230,6 +300,7 @@ const interviewSkills = [
           draft={draft}
           canEditDoc={canEdit(role)}
           commentsEnabled={canComment(role)}
+          templates={templateOptions}
         >
           <div slot="attachments" class="flex flex-col gap-4">
             <SpecReferences specId={spec.id} />

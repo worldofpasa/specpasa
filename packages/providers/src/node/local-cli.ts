@@ -5,13 +5,14 @@ import { systemPrompt, userPrompt } from "../prompts.js";
 import { type AgentEvent, type AgentRequest, type SpecAgent } from "../types.js";
 import { parseClaudeStreamLine } from "./claude-stream.js";
 import { parseCodexStreamLine } from "./codex-stream.js";
+import { parseCursorStreamLine } from "./cursor-stream.js";
 
 /**
  * Commands the adapter is allowed to spawn. Never widen this from stored
  * data — cli_command comes from the database and must not become an
  * arbitrary-command execution vector.
  */
-export const SUPPORTED_CLI_COMMANDS = ["claude", "codex"] as const;
+export const SUPPORTED_CLI_COMMANDS = ["claude", "codex", "cursor-agent", "grok"] as const;
 export type SupportedCliCommand = (typeof SUPPORTED_CLI_COMMANDS)[number];
 
 export function isSupportedCliCommand(command: string): command is SupportedCliCommand {
@@ -105,9 +106,54 @@ export function codexSession(system: string, user: string): CliSession {
   };
 }
 
+/** Exported for unit tests. */
+export function cursorSession(system: string, user: string): CliSession {
+  let resultText: string | null = null;
+  return {
+    // The prompt is positional in print mode (stdin is only read as extra
+    // context, and only in some versions — argv is the documented channel).
+    // cursor-agent has no system-prompt flag, so instructions share the
+    // prompt, delimited like codex. Without --force, print mode never
+    // modifies files.
+    args: [
+      "-p",
+      "--output-format",
+      "stream-json",
+      `<instructions>\n${system}\n</instructions>\n\n${user}`,
+    ],
+    stdinPayload: "",
+    handleLine(line) {
+      const item = parseCursorStreamLine(line);
+      if (item.kind === "token") return { token: item.text };
+      if (item.kind === "result") resultText = item.text;
+      if (item.kind === "error") return { error: item.message };
+      return {};
+    },
+    // The terminal result event is documented as the authoritative aggregated
+    // text — assistant events are best-effort streaming.
+    finalMarkdown: (accumulated) => resultText ?? accumulated,
+  };
+}
+
+/** Exported for unit tests. */
+export function grokSession(system: string, user: string): CliSession {
+  // grok's streaming-json event schema is not published, so this adapter
+  // stays on plain output: stdout lines stream to the UI as-is and the
+  // accumulated text is the document. --rules appends to the system prompt
+  // (the documented instruction channel); the prompt itself is argv-only.
+  return {
+    args: ["-p", user, "--output-format", "plain", "--rules", system, "--no-auto-update"],
+    stdinPayload: "",
+    handleLine: (line) => ({ token: `${line}\n` }),
+    finalMarkdown: (accumulated) => accumulated,
+  };
+}
+
 const CLI_SESSIONS: Record<SupportedCliCommand, (system: string, user: string) => CliSession> = {
   claude: claudeSession,
   codex: codexSession,
+  "cursor-agent": cursorSession,
+  grok: grokSession,
 };
 
 function exitFailureEvent(

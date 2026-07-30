@@ -7,5 +7,6 @@ export * from "./local-cli.js";
 export * from "./detect.js";
 export * from "./factory.js";
 export * from "./claude-stream.js";
+export * from "./cursor-stream.js";
 export * from "./agent-session.js";
 export * from "./skills/index.js";

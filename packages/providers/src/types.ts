@@ -40,4 +40,13 @@ export interface DetectedProvider {
   name: string;
   /** e.g. CLI path or base URL that responded. */
   detail: string;
+  /** For local_cli detections: the bare command found on PATH. */
+  command?: string;
+  /** For ollama detections: the pulled model names, ready to configure. */
+  models?: string[];
+  /** For ollama detections: the base URL that answered the probe. */
+  baseUrl?: string;
+  /** Whether an adapter exists for this detection (CLIs may be detected
+   * before an adapter ships). Non-CLI detections are always usable. */
+  usable?: boolean;
 }
