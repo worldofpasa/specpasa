@@ -230,7 +230,7 @@ function DocBlock({
       {flagged && (
         <span
           title={t.lifecycle.openThreadsWarning(openThreads)}
-          className="absolute -right-2.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-review font-mono text-[10px] font-bold text-on-accent"
+          className="absolute -right-2.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-review text-[10px] font-semibold text-on-accent"
         >
           {openThreads}
         </span>
@@ -239,7 +239,7 @@ function DocBlock({
         <Mermaid source={fencedContent(block.markdown)} />
       ) : (
         <div
-          className="prose prose-neutral max-w-none font-serif prose-headings:font-sans dark:prose-invert"
+          className="prose prose-neutral max-w-none dark:prose-invert"
           dangerouslySetInnerHTML={{ __html: marked.parse(block.markdown) as string }}
         />
       )}
@@ -257,7 +257,7 @@ function Sheet({
   openCounts: Record<string, number>;
 }) {
   return (
-    <div className="relative mx-auto w-full max-w-3xl rounded border border-line bg-sheet px-12 py-10 shadow-sm">
+    <div className="relative mx-auto w-full max-w-3xl rounded-lg border border-line bg-sheet px-12 py-10 shadow-sm">
       {blocks.length === 0 ? (
         <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
       ) : (
@@ -298,11 +298,11 @@ function RevisionStrip({
             href={isCurrent ? `/specs/${specId}/versions` : `/specs/${specId}/versions/${n}`}
             className="flex flex-col border-r border-line px-3 py-1.5 last:border-r-0 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-neutral-400">
+            <span className="text-[10px] font-medium text-neutral-400">
               {t.workspace.titleBlock.rev}
             </span>
             <span
-              className={`font-mono text-xs font-semibold ${isCurrent ? "text-accent" : "text-neutral-500"}`}
+              className={`font-mono text-xs font-medium ${isCurrent ? "text-accent" : "text-neutral-500"}`}
             >
               {t.versions.versionBase(n)}
               {isCurrent ? " ●" : ""}
@@ -364,9 +364,7 @@ function ContextChips({
   if (referenceOptions.length === 0) return null;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-dashed border-line pt-2">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">
-        {t.editor.aiContextLabel}
-      </span>
+      <span className="text-xs font-medium text-neutral-500">{t.editor.aiContextLabel}</span>
       {referenceOptions.map((reference) => {
         const included = !excludedRefs.has(reference.id);
         return (
@@ -535,7 +533,7 @@ function FloatingAi({
             }
           />
           {openComments > 0 && (
-            <p className="mt-2 border-t border-dashed border-line pt-2 font-mono text-[10px] text-review">
+            <p className="mt-2 border-t border-dashed border-line pt-2 text-xs text-review">
               {t.editor.aiIncludesComments(openComments)}
             </p>
           )}
@@ -576,9 +574,7 @@ function WorkspaceToolbar({
       </span>
       {draftState === "dirty" && <span className="text-xs text-review">{t.editor.unsaved}</span>}
       {draftState === "saved" && dirty && (
-        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-400">
-          {t.editor.draftSaved}
-        </span>
+        <span className="text-xs text-neutral-400">{t.editor.draftSaved}</span>
       )}
       <div className="ml-auto flex items-center gap-2">
         {!frozen && canEditDoc && (
@@ -639,7 +635,7 @@ function LeftRail({
       {leftOpen && (
         <div className="flex flex-col gap-4">
           <div className="rounded border border-line bg-sheet">
-            <h2 className="border-b border-line px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+            <h2 className="border-b border-line px-3 py-2 text-xs font-semibold text-neutral-500">
               {t.workspace.outline}
             </h2>
             <Outline entries={toc} />
@@ -663,7 +659,7 @@ function EditorPane({
   onDiscard: () => void;
 }) {
   return (
-    <div className="mx-auto w-full max-w-3xl rounded border border-line bg-sheet shadow-sm">
+    <div className="mx-auto w-full max-w-3xl rounded-lg border border-line bg-sheet shadow-sm">
       {restoredDraft && (
         <p className="flex items-center gap-3 border-b border-dashed border-line bg-review-soft/60 px-6 py-2 text-xs text-review">
           {t.editor.draftRestored}

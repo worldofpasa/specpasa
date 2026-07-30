@@ -38,7 +38,7 @@ const statusStamp = (status: string) =>
   <main class="mx-auto max-w-4xl px-6 py-10">
     <header class="flex flex-wrap items-end justify-between gap-4">
       <div class="min-w-0">
-        <nav class="font-mono text-xs text-neutral-500">
+        <nav class="text-xs text-neutral-500">
           <a href="/" class="hover:text-accent">{t.nav.projects}</a> /
           <a href={`/projects/${project!.id}`} class="hover:text-accent">{project!.name}</a> /
         </nav>
@@ -55,7 +55,7 @@ const statusStamp = (status: string) =>
 
     <section class="mt-6 rounded border border-line bg-sheet">
       <h2
-        class="border-b border-line px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500"
+        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
       >
         {t.specs.listLabel}
       </h2>
@@ -68,18 +68,18 @@ const statusStamp = (status: string) =>
                 class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <span class="min-w-0 truncate font-medium">{spec.title}</span>
-                <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
+                <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
                   {t.phases.label(spec.phase)}
                 </span>
                 <span
                   class:list={[
-                    "rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em]",
+                    "rounded border px-1.5 py-0.5 text-[11px] font-medium",
                     statusStamp(spec.status),
                   ]}
                 >
                   {t.lifecycle.statusName(spec.status)}
                 </span>
-                <span class="ml-auto font-mono text-xs text-neutral-400">→</span>
+                <span class="ml-auto text-xs text-neutral-400">→</span>
               </a>
             </li>
           ))
@@ -99,7 +99,7 @@ const statusStamp = (status: string) =>
         class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
       />
       <fieldset class="flex flex-col gap-2">
-        <legend class="mb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+        <legend class="mb-1 text-xs font-semibold text-neutral-500">
           {t.specs.startPhaseLabel}
         </legend>
         <label class="flex items-start gap-2 text-sm">

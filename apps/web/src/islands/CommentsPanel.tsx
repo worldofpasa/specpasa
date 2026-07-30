@@ -192,11 +192,9 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
   return (
     <div className="rounded border border-line bg-sheet">
       <div className="flex items-baseline justify-between gap-2 border-b border-line px-3 py-2">
-        <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-          {t.comments.heading}
-        </h2>
+        <h2 className="text-xs font-semibold text-neutral-500">{t.comments.heading}</h2>
         <p
-          className={`font-mono text-[10px] ${open > 0 ? "text-review" : "text-neutral-400"}`}
+          className={`text-[11px] ${open > 0 ? "text-review" : "text-neutral-400"}`}
           data-testid="review-summary"
         >
           {t.comments.summary(open, resolved)}
@@ -212,7 +210,7 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
           <div className="rounded border border-review bg-sheet p-3">
             <p className="text-xs font-semibold">{t.comments.composerHeading}</p>
             {snippetFor(composerBlockId) && (
-              <p className="mt-1 border-l-[1.5px] border-review pl-2 font-serif text-xs italic text-neutral-500">
+              <p className="mt-1 border-l-2 border-review pl-2 text-xs text-neutral-500">
                 {snippetFor(composerBlockId)}
               </p>
             )}
