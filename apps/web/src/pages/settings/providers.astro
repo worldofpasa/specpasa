@@ -4,10 +4,16 @@ import { detectLocalProvidersNode, SUPPORTED_CLI_COMMANDS } from "@specpasa/prov
 import Base from "../../layouts/Base.astro";
 import Modal from "../../components/Modal.astro";
 import { getWorkspace } from "../../lib/auth";
-import { getDb, schema, and, desc, eq, isNull, or } from "../../lib/db";
+import { syncDetectedCliProviders } from "../../lib/cli-providers";
+import { getDb, schema, desc, eq } from "../../lib/db";
 import { t } from "../../lib/strings";
 
 const workspace = await getWorkspace(Astro.locals.user!.id);
+
+// Supported CLIs on PATH become providers automatically; disabling a row
+// below (not deleting it) is the opt-out that sticks.
+await syncDetectedCliProviders(workspace.id);
+
 const configs = await getDb()
   .select()
   .from(schema.ai_provider_configs)
@@ -15,22 +21,11 @@ const configs = await getDb()
   .orderBy(desc(schema.ai_provider_configs.created_at));
 
 const detected = await detectLocalProvidersNode();
-
-// A detected CLI without a config row is dead weight — offer one-click
-// enablement. Global (workspace-less) configs count as already enabled.
-const cliConfigs = await getDb()
-  .select({ cli_command: schema.ai_provider_configs.cli_command })
-  .from(schema.ai_provider_configs)
-  .where(
-    and(
-      eq(schema.ai_provider_configs.kind, "local_cli"),
-      or(
-        eq(schema.ai_provider_configs.workspace_id, workspace.id),
-        isNull(schema.ai_provider_configs.workspace_id),
-      ),
-    ),
-  );
-const configuredCommands = new Set(cliConfigs.map((c) => c.cli_command));
+// A CLI row whose binary is still on PATH can only be disabled, not removed —
+// removal would just get re-provisioned on the next load.
+const detectedCommands = new Set(
+  detected.flatMap((entry) => (entry.command ? [entry.command] : [])),
+);
 
 const inputClass =
   "rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400";
@@ -79,21 +74,12 @@ const submitClass =
       <div class="px-4 py-3 text-sm">
         {
           detected.length > 0 ? (
-            detected.map((entry) => (
-              <div class="flex items-center gap-3 py-0.5">
-                <p class="text-accent">{t.providers.detectedItem(entry.name, entry.detail)}</p>
-                {entry.command && entry.usable && !configuredCommands.has(entry.command) && (
-                  <form method="POST" action={actions.saveProviderConfig}>
-                    <input type="hidden" name="kind" value="local_cli" />
-                    <input type="hidden" name="name" value={t.providers.autoAddedName(entry.command)} />
-                    <input type="hidden" name="cliCommand" value={entry.command} />
-                    <button class="rounded border border-line px-2 py-0.5 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                      {t.providers.enableDetected}
-                    </button>
-                  </form>
-                )}
-              </div>
-            ))
+            <>
+              {detected.map((entry) => (
+                <p class="py-0.5 text-accent">{t.providers.detectedItem(entry.name, entry.detail)}</p>
+              ))}
+              <p class="mt-1 text-xs text-neutral-500">{t.providers.autoSyncNote}</p>
+            </>
           ) : (
             <p class="text-neutral-500">{t.providers.nothingDetected}</p>
           )
@@ -109,26 +95,52 @@ const submitClass =
       </h2>
       <ul class="divide-y divide-line">
         {
-          configs.map((config) => (
-            <li class="flex items-center gap-3 px-4 py-3 text-sm">
-              <span class="font-medium">{config.name}</span>
-              <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
-                {config.kind}
-              </span>
-              <span class="min-w-0 truncate font-mono text-xs text-neutral-500">
-                {config.model ?? config.cli_command}
-              </span>
-              {config.encrypted_credentials && (
-                <span class="font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-400">
-                  {t.providers.keyStored}
+          configs.map((config) => {
+            const cliStillDetected =
+              config.kind === "local_cli" &&
+              config.cli_command !== null &&
+              detectedCommands.has(config.cli_command);
+            return (
+              <li
+                class:list={["flex items-center gap-3 px-4 py-3 text-sm", !config.enabled && "opacity-60"]}
+              >
+                <span class="font-medium">{config.name}</span>
+                <span class="rounded-sm bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-accent">
+                  {config.kind}
                 </span>
-              )}
-              <form method="POST" action={actions.deleteProviderConfig} class="ml-auto">
-                <input type="hidden" name="id" value={config.id} />
-                <button class="text-xs text-red-600 hover:underline">{t.providers.remove}</button>
-              </form>
-            </li>
-          ))
+                <span class="min-w-0 truncate font-mono text-xs text-neutral-500">
+                  {config.model ?? config.cli_command}
+                </span>
+                {config.encrypted_credentials && (
+                  <span class="font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-400">
+                    {t.providers.keyStored}
+                  </span>
+                )}
+                {!config.enabled && (
+                  <span class="rounded-sm border border-line px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {t.providers.disabledBadge}
+                  </span>
+                )}
+                <span class="ml-auto flex items-center gap-3">
+                  <form method="POST" action={actions.setProviderEnabled}>
+                    <input type="hidden" name="id" value={config.id} />
+                    <input type="hidden" name="enabled" value={config.enabled ? "false" : "true"} />
+                    <button class="text-xs text-accent hover:underline">
+                      {config.enabled ? t.providers.disable : t.providers.enable}
+                    </button>
+                  </form>
+                  {!cliStillDetected && (
+                    <form method="POST" action={actions.deleteProviderConfig}>
+                      <input type="hidden" name="id" value={config.id} />
+                      <button class="text-xs text-red-600 hover:underline">
+                        {t.providers.remove}
+                      </button>
+                    </form>
+                  )}
+                </span>
+              </li>
+            );
+          })
         }
         {configs.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.providers.empty}</li>}
       </ul>

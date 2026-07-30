@@ -576,6 +576,27 @@ export const server = {
     },
   }),
 
+  /** Disable/enable without deleting — the opt-out for auto-detected CLIs
+   * (a disabled row blocks re-provisioning; a deleted one would come back). */
+  setProviderEnabled: defineAction({
+    accept: "form",
+    input: z.object({ id: z.string(), enabled: z.enum(["true", "false"]) }),
+    handler: async (input, context) => {
+      const userId = await requireEditor(context);
+      const workspace = await getWorkspace(userId);
+      await getDb()
+        .update(schema.ai_provider_configs)
+        .set({ enabled: input.enabled === "true", updated_at: now() })
+        .where(
+          and(
+            eq(schema.ai_provider_configs.id, input.id),
+            eq(schema.ai_provider_configs.workspace_id, workspace.id),
+          ),
+        );
+      return { ok: true };
+    },
+  }),
+
   deleteProviderConfig: defineAction({
     accept: "form",
     input: z.object({ id: z.string() }),

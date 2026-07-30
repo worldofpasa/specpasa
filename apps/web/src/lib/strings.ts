@@ -146,7 +146,11 @@ export const t = {
     title: pageTitle("AI Providers"),
     detectedHeading: "Detected on this host",
     detectedItem: (name: string, detail: string) => `✓ ${name} — ${detail}`,
-    enableDetected: "Enable",
+    autoSyncNote:
+      "Supported CLIs found on this host are added as providers automatically — disable one below to opt out without losing it.",
+    disabledBadge: "disabled",
+    enable: "Enable",
+    disable: "Disable",
     nothingDetected:
       "No local AI backends detected — looked for Ollama on localhost:11434 and the claude, codex, cursor-agent, and grok CLIs on PATH.",
     empty: "No providers configured yet.",
