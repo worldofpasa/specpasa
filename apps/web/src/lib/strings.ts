@@ -199,6 +199,14 @@ export const t = {
     editProvider: (name: string) => `Edit ${name}`,
     keyKeepNote: "Leave blank to keep the stored key.",
     save: "Save",
+    advancedHeading: "Advanced",
+    systemPromptLabel: "Workspace instructions",
+    systemPromptHint:
+      "Appended to the built-in system prompt on every generation — the output-format contract stays intact.",
+    cliModelPlaceholder: "Model (optional — passed via --model)",
+    extraArgsLabel: "Extra CLI arguments (one per line)",
+    extraArgsWarning:
+      "Arguments change how the CLI runs — a flag can turn off its read-only mode. Only add flags you trust.",
   },
   lifecycle: {
     heading: "Lifecycle",

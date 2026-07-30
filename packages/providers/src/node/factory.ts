@@ -1,4 +1,5 @@
 import { createSpecAgent, ProviderConfigError, type AgentConfigInput } from "../factory.js";
+import { parseProviderSettings } from "../settings.js";
 import { type SpecAgent } from "../types.js";
 import { createLocalCliAgent, isSupportedCliCommand } from "./local-cli.js";
 
@@ -15,5 +16,11 @@ export function createSpecAgentNode(config: AgentConfigInput): SpecAgent {
       `Local CLI provider requires a supported command (${config.cliCommand ?? "none"} given)`,
     );
   }
-  return createLocalCliAgent({ command: config.cliCommand });
+  const settings = parseProviderSettings(config.settings);
+  return createLocalCliAgent({
+    command: config.cliCommand,
+    model: config.model ?? undefined,
+    extraArgs: settings.extraArgs,
+    systemPromptOverride: settings.systemPromptOverride,
+  });
 }

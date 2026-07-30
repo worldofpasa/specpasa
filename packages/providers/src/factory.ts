@@ -2,6 +2,7 @@ import { assertNever, type AiProviderKind } from "@specpasa/core";
 import { createAnthropicAgent } from "./anthropic.js";
 import { createOllamaAgent } from "./ollama.js";
 import { createOpenAiCompatibleAgent } from "./openai-compatible.js";
+import { parseProviderSettings } from "./settings.js";
 import { type SpecAgent } from "./types.js";
 
 /** Kinds with a working adapter today. Widen as adapters land (never wider
@@ -40,16 +41,26 @@ export interface AgentConfigInput {
   apiKey: string | null;
   /** For local_cli: which host CLI to spawn (allowlisted in the adapter). */
   cliCommand?: string | null;
+  /** Raw ai_provider_configs.settings JSON — parsed via parseProviderSettings. */
+  settings?: unknown;
 }
 
 function anthropicFromConfig(config: AgentConfigInput): SpecAgent {
   if (!config.apiKey) throw new ProviderConfigError("Anthropic requires an API key");
-  return createAnthropicAgent({ apiKey: config.apiKey, model: config.model ?? undefined });
+  return createAnthropicAgent({
+    apiKey: config.apiKey,
+    model: config.model ?? undefined,
+    systemPromptOverride: parseProviderSettings(config.settings).systemPromptOverride,
+  });
 }
 
 function ollamaFromConfig(config: AgentConfigInput): SpecAgent {
   if (!config.model) throw new ProviderConfigError("Ollama requires a model name");
-  return createOllamaAgent({ model: config.model, baseUrl: config.baseUrl ?? undefined });
+  return createOllamaAgent({
+    model: config.model,
+    baseUrl: config.baseUrl ?? undefined,
+    systemPromptOverride: parseProviderSettings(config.settings).systemPromptOverride,
+  });
 }
 
 /** Kinds served by the OpenAI-compatible adapter. `openrouter` and `google`
@@ -82,6 +93,7 @@ function openaiCompatibleFromConfig(
     model: config.model,
     apiKey: config.apiKey ?? undefined,
     kind,
+    systemPromptOverride: parseProviderSettings(config.settings).systemPromptOverride,
   });
 }
 

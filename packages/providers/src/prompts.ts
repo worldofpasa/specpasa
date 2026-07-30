@@ -10,12 +10,16 @@ const PHASE_GUIDANCE: Record<AgentRequest["phase"], string> = {
     "You are drafting an implementation plan: epics as ## headings, each with a checklist of concrete, estimable tasks.",
 };
 
-export function systemPrompt(request: AgentRequest): string {
-  return [
+export function systemPrompt(request: AgentRequest, override?: string): string {
+  const base = [
     "You are a spec-writing collaborator inside specpasa, a collaborative spec builder.",
     PHASE_GUIDANCE[request.phase],
     "Respond with ONLY the full markdown document — no preamble, no code fence around the whole document, no commentary. Use mermaid fenced code blocks for diagrams.",
   ].join("\n\n");
+  // Overrides compose — they never replace the base prompt, whose output
+  // contract ("ONLY the full markdown document") block parsing depends on.
+  const extra = override?.trim();
+  return extra ? `${base}\n\n<workspace-instructions>\n${extra}\n</workspace-instructions>` : base;
 }
 
 export function userPrompt(request: AgentRequest, mode: "draft" | "refine" | "summarize"): string {

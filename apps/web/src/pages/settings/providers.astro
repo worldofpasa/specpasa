@@ -5,6 +5,7 @@ import Base from "../../layouts/Base.astro";
 import Modal from "../../components/Modal.astro";
 import { getWorkspace } from "../../lib/auth";
 import { autoDetectEnabled, syncDetectedCliProviders } from "../../lib/cli-providers";
+import { parseProviderSettings } from "@specpasa/providers";
 import { getDb, schema, desc, eq } from "../../lib/db";
 import { CLOUD_PROVIDER_PRESETS } from "../../lib/provider-presets";
 import { t } from "../../lib/strings";
@@ -291,7 +292,7 @@ const submitClass =
         >
           <input type="hidden" name="id" value={config.id} />
           <input name="name" required value={config.name} class={inputClass} />
-          {config.kind !== "local_cli" && (
+          {config.kind !== "local_cli" ? (
             <>
               <input
                 name="model"
@@ -304,6 +305,13 @@ const submitClass =
               <datalist id={`edit-models-${config.id}`} />
               <p class="text-xs text-neutral-500">{t.providers.modelListHint}</p>
             </>
+          ) : (
+            <input
+              name="model"
+              value={config.model ?? ""}
+              placeholder={t.providers.cliModelPlaceholder}
+              class={inputClass}
+            />
           )}
           {config.kind !== "local_cli" && config.kind !== "anthropic" && (
             <input
@@ -330,6 +338,37 @@ const submitClass =
               )}
             </>
           )}
+          <details class="rounded border border-line px-3 py-2">
+            <summary class="cursor-pointer text-xs font-medium text-neutral-500">
+              {t.providers.advancedHeading}
+            </summary>
+            <div class="mt-2 flex flex-col gap-2">
+              <label class="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+                {t.providers.systemPromptLabel}
+                <textarea
+                  name="systemPrompt"
+                  rows="4"
+                  class={`${inputClass} font-normal`}
+                  set:text={parseProviderSettings(config.settings).systemPromptOverride ?? ""}
+                />
+              </label>
+              <p class="text-xs text-neutral-500">{t.providers.systemPromptHint}</p>
+              {config.kind === "local_cli" && (
+                <>
+                  <label class="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+                    {t.providers.extraArgsLabel}
+                    <textarea
+                      name="extraArgs"
+                      rows="3"
+                      class={`${inputClass} font-mono font-normal`}
+                      set:text={(parseProviderSettings(config.settings).extraArgs ?? []).join("\n")}
+                    />
+                  </label>
+                  <p class="text-xs text-review">{t.providers.extraArgsWarning}</p>
+                </>
+              )}
+            </div>
+          </details>
           <button class={submitClass}>{t.providers.save}</button>
         </form>
       </Modal>

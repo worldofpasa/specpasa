@@ -20,7 +20,7 @@ import {
   TEMPLATE_KINDS,
 } from "@specpasa/core";
 import { IntegrationError, type ExternalRecord, type TaskExportEpic } from "@specpasa/integrations";
-import { IMPLEMENTED_AI_PROVIDER_KINDS } from "@specpasa/providers";
+import { IMPLEMENTED_AI_PROVIDER_KINDS, SETTINGS_LIMITS, validateExtraArgs } from "@specpasa/providers";
 import { findExecutableOnPath, SUPPORTED_CLI_COMMANDS } from "@specpasa/providers/node";
 import { getMembership, getWorkspace, hashPassword, verifyPassword } from "../lib/auth";
 import { specInWorkspace, threadSpecInWorkspace } from "../lib/authz";
@@ -135,6 +135,29 @@ function validateProviderInput(
   if (input.kind === "openai_compatible" && !input.baseUrl) {
     badRequest("This provider requires a base URL");
   }
+}
+
+/** Overrides form fields → the settings JSON column (null when all empty).
+ * The textarea holds one CLI arg per line; content rules live in
+ * validateExtraArgs (mirrored defensively inside the CLI adapter). */
+function providerSettingsFromInput(input: {
+  systemPrompt?: string;
+  extraArgs?: string;
+}): Record<string, unknown> | null {
+  const systemPromptOverride = input.systemPrompt?.trim();
+  const args = (input.extraArgs ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (args.length > 0) {
+    const problem = validateExtraArgs(args);
+    if (problem) badRequest(problem);
+  }
+  if (!systemPromptOverride && args.length === 0) return null;
+  return {
+    ...(systemPromptOverride ? { systemPromptOverride } : {}),
+    ...(args.length > 0 ? { extraArgs: args } : {}),
+  };
 }
 
 /** Frozen-spec + connected-sink guard shared by the export actions (M4). */
@@ -466,11 +489,14 @@ export const server = {
       apiKey: z.string().optional(),
       baseUrl: z.string().optional(),
       cliCommand: z.enum(SUPPORTED_CLI_COMMANDS).optional(),
+      systemPrompt: z.string().max(SETTINGS_LIMITS.promptMax).optional(),
+      extraArgs: z.string().optional(),
     }),
     handler: async (input, context) => {
       const userId = await requireEditor(context);
       const workspace = await getWorkspace(userId);
       validateProviderInput(input);
+      const settings = providerSettingsFromInput(input);
       const ts = now();
       const id = newId();
       await getDb()
@@ -486,6 +512,7 @@ export const server = {
           encrypted_credentials: input.apiKey
             ? await encryptSecret(input.apiKey, SPECPASA_SECRET)
             : null,
+          settings,
           enabled: true,
           created_at: ts,
           updated_at: ts,
@@ -504,6 +531,8 @@ export const server = {
       model: z.string().optional(),
       baseUrl: z.string().optional(),
       apiKey: z.string().optional(),
+      systemPrompt: z.string().max(SETTINGS_LIMITS.promptMax).optional(),
+      extraArgs: z.string().optional(),
     }),
     handler: async (input, context) => {
       const userId = await requireEditor(context);
@@ -537,6 +566,9 @@ export const server = {
           name: input.name,
           model: input.model || null,
           base_url: input.baseUrl || config.base_url,
+          // The edit form always shows the current overrides, so a full
+          // replace (or clear) is what the user saw and meant.
+          settings: providerSettingsFromInput(input),
           ...(input.apiKey
             ? { encrypted_credentials: await encryptSecret(input.apiKey, SPECPASA_SECRET) }
             : {}),

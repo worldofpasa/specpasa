@@ -10,6 +10,8 @@ export interface OpenAiCompatibleAgentConfig {
   model: string;
   /** Reported SpecAgent.kind; presets (openrouter, google) share this adapter. */
   kind?: "openai_compatible" | "openrouter" | "google";
+  /** Appended to the built-in system prompt (see prompts.ts). */
+  systemPromptOverride?: string;
 }
 
 /** Yield the data payloads of an SSE stream as they complete. */
@@ -96,7 +98,7 @@ export function createOpenAiCompatibleAgent(config: OpenAiCompatibleAgentConfig)
           model: config.model,
           stream: true,
           messages: [
-            { role: "system", content: systemPrompt(request) },
+            { role: "system", content: systemPrompt(request, config.systemPromptOverride) },
             { role: "user", content: userPrompt(request, mode) },
           ],
         }),
