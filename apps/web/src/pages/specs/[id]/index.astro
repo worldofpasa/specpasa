@@ -6,6 +6,7 @@ import SpecWorkspace from "../../../islands/SpecWorkspace";
 import CommentsPanel from "../../../islands/CommentsPanel";
 import InterviewPanel from "../../../islands/InterviewPanel";
 import PresenceChips from "../../../islands/PresenceChips";
+import SpecPipeline from "../../../components/SpecPipeline.astro";
 import SpecLifecycle from "../../../components/SpecLifecycle.astro";
 import SpecReferences from "../../../components/SpecReferences.astro";
 import Connectors from "../../../components/Connectors.astro";
@@ -26,6 +27,13 @@ const [intent] = await db
   .select()
   .from(schema.intents)
   .where(eq(schema.intents.id, spec.intent_id));
+const [project] = intent
+  ? await db.select().from(schema.projects).where(eq(schema.projects.id, intent.project_id))
+  : [];
+const relatedSpecs = await db
+  .select()
+  .from(schema.specs)
+  .where(eq(schema.specs.intent_id, spec.intent_id));
 
 const advanceResult = Astro.getActionResult(actions.advancePhase);
 if (advanceResult && !advanceResult.error)
@@ -112,6 +120,56 @@ const versionNumbers = (
     .orderBy(asc(schema.spec_versions.number))
 ).map((row) => row.number);
 
+// Build the lifecycle from this spec's real provenance chain. A direct-to-PRD
+// document intentionally leaves IDEA empty; sibling forks do not get merged
+// into this control path.
+const phases = ["draft", "prd", "erd", "tasks"] as const;
+const lineage = new Map<string, (typeof relatedSpecs)[number]>();
+let lineageCursor: (typeof relatedSpecs)[number] | undefined = spec;
+while (lineageCursor) {
+  lineage.set(lineageCursor.phase, lineageCursor);
+  lineageCursor = lineageCursor.derived_from_spec_id
+    ? relatedSpecs.find((candidate) => candidate.id === lineageCursor!.derived_from_spec_id)
+    : undefined;
+}
+lineageCursor = spec;
+while (lineageCursor) {
+  const child = relatedSpecs
+    .filter((candidate) => candidate.derived_from_spec_id === lineageCursor!.id)
+    .sort((a, b) => b.updated_at - a.updated_at)[0];
+  if (!child) break;
+  lineage.set(child.phase, child);
+  lineageCursor = child;
+}
+const currentVersionNumberById = new Map(
+  (
+    await db
+      .select({
+        id: schema.spec_versions.id,
+        number: schema.spec_versions.number,
+      })
+      .from(schema.spec_versions)
+      .innerJoin(schema.specs, eq(schema.specs.current_version_id, schema.spec_versions.id))
+      .where(eq(schema.specs.intent_id, spec.intent_id))
+  ).map((version) => [version.id, version.number]),
+);
+const pipelineSteps = phases.map((phase, index) => {
+  const lineageSpec = lineage.get(phase);
+  const prior = index > 0 ? lineage.get(phases[index - 1]!) : undefined;
+  return {
+    phase,
+    href: lineageSpec ? `/specs/${lineageSpec.id}` : undefined,
+    status: lineageSpec?.status,
+    version: lineageSpec?.current_version_id
+      ? currentVersionNumberById.get(lineageSpec.current_version_id)
+      : undefined,
+    active: phase === spec.phase,
+    blockedBy: !lineageSpec && index > phases.indexOf(spec.phase) && prior?.status !== "frozen"
+      ? phases[index - 1]
+      : undefined,
+  };
+});
+
 // Template options for a document with no versions yet: each option carries
 // the full editor seed (title heading, provenance note for derived specs,
 // then the template body). Byte-identical to what advancePhase writes into
@@ -171,49 +229,22 @@ const interviewSkills = [
 ---
 
 <Base title={pageTitle(spec.title)}>
-  <main class="mx-auto max-w-[110rem] px-6 py-6">
-    {/* Title block — the spec's engineering-drawing header (The Study, #14). */}
-    <header class="mb-6 overflow-hidden rounded-lg border border-line bg-sheet shadow-sm">
-      <div class="flex flex-wrap items-stretch">
-        <div class="min-w-0 flex-1 basis-56 px-4 py-2.5 sm:border-r sm:border-line">
-          <span class="block text-[11px] font-medium text-neutral-500">
-            {t.workspace.titleBlock.spec}
-          </span>
-          <h1 class="truncate text-lg font-semibold leading-tight">{spec.title}</h1>
-        </div>
-        <div class="hidden max-w-52 border-r border-line px-4 py-2.5 lg:block">
-          <span class="block text-[11px] font-medium text-neutral-500">
-            {t.workspace.titleBlock.project}
-          </span>
-          <a href={`/intents/${intent!.id}`} class="block truncate text-sm font-medium hover:text-accent">
-            {intent!.title}
-          </a>
-        </div>
-        <div class="hidden border-r border-line px-4 py-2.5 sm:block">
-          <span class="block text-[11px] font-medium text-neutral-500">
-            {t.workspace.titleBlock.phase}
-          </span>
-          <span class="block text-sm font-medium text-accent">{t.phases.label(spec.phase)}</span>
-        </div>
-        <div class="hidden border-r border-line px-4 py-2.5 sm:block">
-          <span class="block text-[11px] font-medium text-neutral-500">
-            {t.workspace.titleBlock.rev}
-          </span>
-          <a
-            href={`/specs/${spec.id}/versions`}
-            class="block font-mono text-sm font-medium hover:text-accent"
-            title={t.specs.versionHistory}
-          >
-            v{current?.number ?? 0}
-          </a>
-        </div>
-        <div class="ml-auto flex flex-wrap items-center gap-3 px-4 py-2">
+  <main class="sp-page">
+    <header class="sp-page-header">
+      <div class="min-w-0">
+        <nav class="sp-eyebrow">
+          <a href={`/projects/${project!.id}`} class="hover:text-accent">{project!.name}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          <a href={`/intents/${intent!.id}`} class="hover:text-accent">{intent!.title}</a>
+        </nav>
+        <div class="mt-1 flex flex-wrap items-center gap-3">
+          <h1 class="sp-title mt-0 truncate">{spec.title}</h1>
           <span
             class:list={[
-              "rounded border px-2 py-0.5 text-[11px] font-medium",
-              spec.status === "in_review" && "border-review text-review",
-              spec.status === "frozen" && "border-frozen text-frozen",
-              spec.status === "draft" && "border-line text-neutral-500",
+              "sp-status",
+              spec.status === "in_review" && "sp-status-review",
+              spec.status === "frozen" && "sp-status-frozen",
+              spec.status === "draft" && "sp-status-accent",
             ]}
             title={spec.status === "frozen" && spec.frozen_at
               ? t.lifecycle.frozenNote(new Date(spec.frozen_at).toLocaleString())
@@ -221,27 +252,36 @@ const interviewSkills = [
           >
             {t.lifecycle.statusName(spec.status)}
           </span>
-          {
-            (spec.phase === "tasks" || spec.status === "frozen") && (
-              <a
-                href={`/specs/${spec.id}/export`}
-                class="text-xs font-medium text-neutral-500 hover:text-accent"
-              >
-                {t.export.heading}
-              </a>
-            )
-          }
-          <PresenceChips client:load selfId={Astro.locals.user!.id} />
-          {
-            canEdit(role) && (
-              <SpecLifecycle spec={spec} openThreads={openThreads} aiConvertAvailable={showConvert} />
-            )
-          }
         </div>
+        <p class="sp-subtitle font-mono">
+          {t.phases.label(spec.phase)} · v{current?.number ?? 0}
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <PresenceChips client:load selfId={Astro.locals.user!.id} />
+        <a href={`/specs/${spec.id}/versions`} class="sp-btn">
+          {t.specs.versionHistory}
+        </a>
+        {
+          (spec.phase === "tasks" || spec.status === "frozen") && (
+            <a href={`/specs/${spec.id}/export`} class="sp-btn">
+              {t.export.heading}
+            </a>
+          )
+        }
+        {
+          canEdit(role) && (
+            <SpecLifecycle spec={spec} openThreads={openThreads} aiConvertAvailable={showConvert} />
+          )
+        }
       </div>
     </header>
 
-    <div class="flex gap-6">
+    <div class="mt-7">
+      <SpecPipeline steps={pipelineSteps} />
+    </div>
+
+    <div class="mt-7 flex flex-col gap-6 xl:flex-row">
       <div class="min-w-0 flex-1">
         {
           showInterview && (
@@ -309,7 +349,30 @@ const interviewSkills = [
         </SpecWorkspace>
       </div>
 
-      <aside class="sticky top-6 hidden w-72 shrink-0 self-start lg:block">
+      <aside class="w-full shrink-0 space-y-5 self-start xl:sticky xl:top-20 xl:w-80">
+        <section class="sp-panel">
+          <div class="sp-panel-header">
+            <h2 class="sp-section-title uppercase tracking-[0.08em]">
+              {t.reviewHealth.heading}
+            </h2>
+          </div>
+          <dl class="grid grid-cols-3 divide-x divide-line">
+            <div class="px-2 py-4 text-center">
+              <dd class:list={["text-xl font-bold", openThreads > 0 ? "text-review" : "text-accent"]}>
+                {openThreads}
+              </dd>
+              <dt class="mt-1 text-[10px] text-neutral-500">{t.reviewHealth.openThreads}</dt>
+            </div>
+            <div class="px-2 py-4 text-center">
+              <dd class="text-xl font-bold">{versionNumbers.length}</dd>
+              <dt class="mt-1 text-[10px] text-neutral-500">{t.reviewHealth.versions}</dt>
+            </div>
+            <div class="px-2 py-4 text-center">
+              <dd class="text-xl font-bold">{referenceOptions.length}</dd>
+              <dt class="mt-1 text-[10px] text-neutral-500">{t.reviewHealth.references}</dt>
+            </div>
+          </dl>
+        </section>
         <CommentsPanel
           client:load
           specId={spec.id}

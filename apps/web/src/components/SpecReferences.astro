@@ -26,7 +26,7 @@ const filePayload = (reference: (typeof references)[number]) =>
   reference.kind === "file" ? (reference.payload as unknown as FilePayload | null) : null;
 ---
 
-<section class="rounded border border-line bg-sheet">
+<section class="sp-panel">
   <h2
     class="flex items-center justify-between border-b border-line px-3 py-2 text-xs font-semibold text-neutral-500"
   >
@@ -34,7 +34,7 @@ const filePayload = (reference: (typeof references)[number]) =>
     <button
       type="button"
       data-modal-open="add-reference-modal"
-      class="rounded px-1.5 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent-soft"
+      class="sp-btn sp-btn-sm"
     >
       {t.references.addButton}
     </button>
@@ -121,7 +121,7 @@ const filePayload = (reference: (typeof references)[number]) =>
         name="title"
         required
         placeholder={t.references.titlePlaceholder}
-        class="rounded border border-line bg-transparent px-2 py-1.5 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
     </label>
     <label class="flex flex-col gap-1 text-xs" data-ref-target-row>
@@ -135,7 +135,7 @@ const filePayload = (reference: (typeof references)[number]) =>
         data-placeholder-url={t.references.urlPlaceholder}
         data-placeholder-github={t.references.githubPlaceholder}
         data-placeholder-spec={t.references.specIdPlaceholder}
-        class="rounded border border-line bg-transparent px-2 py-1.5 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
     </label>
     <label class="hidden flex-col gap-1 text-xs" data-ref-file-row>
@@ -150,7 +150,7 @@ const filePayload = (reference: (typeof references)[number]) =>
         class="rounded border border-dashed border-line bg-transparent px-2 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-accent-soft file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-accent"
       />
     </label>
-    <button class="self-start rounded bg-accent px-3 py-1.5 text-sm font-semibold text-on-accent hover:opacity-90">
+    <button class="sp-btn sp-btn-primary self-start">
       {t.references.add}
     </button>
   </form>

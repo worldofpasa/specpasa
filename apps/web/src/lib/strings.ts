@@ -5,6 +5,7 @@
  */
 
 export const APP_NAME = "specpasa";
+export const APP_MARK = "SP";
 
 /** "Part — Part — specpasa" browser/page titles. */
 export const pageTitle = (...parts: string[]): string => [...parts, APP_NAME].join(" — ");
@@ -51,6 +52,41 @@ export const t = {
       glyphDark: "☾",
     },
   },
+  shell: {
+    homeLabel: `Go to ${APP_NAME} home`,
+    openNavigation: "Open navigation",
+    search: "Search this view…",
+    today: "Today",
+    reviewQueue: "Review queue",
+    focus: "Focus",
+    workspace: "Workspace",
+    selfHosted: "Self-hosted",
+    dataControl: "Workspace data stays on infrastructure your team controls.",
+  },
+  dashboard: {
+    eyebrow: "Workspace overview",
+    greeting: (name: string) => `Welcome back, ${name}`,
+    tagline: "Move important specifications forward and keep every decision reviewable.",
+    attentionHeading: "Needs attention",
+    attentionTagline: "Open review work across this workspace.",
+    allClear: "Nothing needs review right now.",
+    item: "Item",
+    location: "Project",
+    review: "Review",
+    updated: "Updated",
+    openThreads: (n: number) => (n === 1 ? "1 open thread" : `${n} open threads`),
+    readyForReview: "Ready for review",
+    projectHeading: "Projects",
+    projectTagline: "Long-lived product spaces and their active intent streams.",
+    intents: "Intents",
+    specs: "Specs",
+    specCount: (n: number) => (n === 1 ? "1 specification" : `${n} specifications`),
+    emptyDescription: "No description yet",
+    projectSummary: (intents: number, specs: number) =>
+      `${intents} ${intents === 1 ? "intent" : "intents"} · ${specs} ${
+        specs === 1 ? "spec" : "specs"
+      }`,
+  },
   auth: {
     setupHeading: `Welcome to ${APP_NAME}`,
     setupTagline: "First run: create the admin account and your workspace.",
@@ -69,6 +105,8 @@ export const t = {
   },
   projects: {
     listLabel: "Projects",
+    eyebrow: "Project",
+    intentCount: (n: number) => (n === 1 ? "1 intent" : `${n} intents`),
     empty: "No projects yet — create the first one below.",
     newHeading: "New project",
     namePlaceholder: "Project name",
@@ -77,6 +115,8 @@ export const t = {
   },
   intents: {
     listLabel: "Intents",
+    eyebrow: "Intent stream",
+    updated: "Updated",
     empty: "No intents yet. An intent captures one goal — e.g. “Self-serve onboarding”.",
     newHeading: "New intent",
     titlePlaceholder: "Intent title",
@@ -85,6 +125,9 @@ export const t = {
   },
   specs: {
     listLabel: "Specs",
+    phase: "Phase",
+    state: "State",
+    updated: "Updated",
     empty: "No specs yet — start with a blank PRD below.",
     newHeading: "New spec",
     titlePlaceholder: "Spec title",
@@ -252,6 +295,21 @@ export const t = {
     /** Client-side template for the live count (SpecLifecycle inline script). */
     openThreadsWarningTemplate: "{n} comment threads are still open.",
     freezeConfirmLabel: "Freeze anyway",
+  },
+  pipeline: {
+    label: "Specification lifecycle",
+    blocked: "Blocked",
+    notStarted: "Not started",
+    ready: "Ready when the prior phase is frozen",
+    version: (n: number) => `Current v${n}`,
+    requires: (phase: string) => `Requires frozen ${phaseLabel(phase)}`,
+  },
+  reviewHealth: {
+    heading: "Review health",
+    openThreads: "Open threads",
+    versions: "Versions",
+    references: "References",
+    clear: "Clear",
   },
   templates: {
     heading: "Templates",

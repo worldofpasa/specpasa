@@ -66,11 +66,10 @@ const available = transitions.filter((transition) =>
           <button
             id={isFreeze ? "freeze-submit" : undefined}
             disabled={guarded}
-            class={`rounded px-3 py-1 text-xs font-semibold ${
-              isFreeze
-                ? "bg-accent text-on-accent hover:opacity-90 disabled:opacity-40"
-                : "border border-line hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            }`}
+            class:list={[
+              "sp-btn sp-btn-sm",
+              isFreeze && "sp-btn-primary disabled:opacity-40",
+            ]}
           >
             {transition.label}
           </button>
@@ -82,7 +81,7 @@ const available = transitions.filter((transition) =>
     canAdvancePhase(spec) && phaseAfter && aiConvertAvailable && (
       <a
         href="#ai-convert"
-        class="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90"
+        class="sp-btn sp-btn-primary sp-btn-sm"
       >
         {t.interview.convert(t.phases.label(phaseAfter))}
       </a>
@@ -93,12 +92,7 @@ const available = transitions.filter((transition) =>
       <form method="POST" action={actions.advancePhase}>
         <input type="hidden" name="specId" value={spec.id} />
         <button
-          class:list={[
-            "rounded px-3 py-1 text-xs font-semibold",
-            aiConvertAvailable
-              ? "border border-line hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              : "bg-accent text-on-accent hover:opacity-90",
-          ]}
+          class:list={["sp-btn sp-btn-sm", !aiConvertAvailable && "sp-btn-primary"]}
         >
           {t.lifecycle.startNextPhase(phaseAfter)}
         </button>

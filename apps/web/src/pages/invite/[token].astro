@@ -2,7 +2,7 @@
 import { actions } from "astro:actions";
 import Base from "../../layouts/Base.astro";
 import { getDb, schema, eq } from "../../lib/db";
-import { APP_NAME, t } from "../../lib/strings";
+import { APP_MARK, APP_NAME, t } from "../../lib/strings";
 
 const db = getDb();
 const [invite] = await db
@@ -22,7 +22,8 @@ if (result && !result.error) return Astro.redirect("/");
 <Base title={t.invite.title}>
   <main class="flex min-h-screen items-center justify-center px-6 py-16">
     <div class="w-full max-w-sm">
-      <h1 class="text-center text-3xl font-semibold tracking-tight">{APP_NAME}</h1>
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-xs font-bold text-on-accent">{APP_MARK}</div>
+      <h1 class="mt-4 text-center text-3xl font-semibold tracking-[-0.04em]">{APP_NAME}</h1>
       {
         !valid || !workspace ? (
           <p class="mt-8 rounded border border-line bg-sheet p-6 text-center text-sm text-neutral-500">
@@ -36,7 +37,7 @@ if (result && !result.error) return Astro.redirect("/");
             <p class="mt-2 text-center text-sm text-neutral-500">
               {t.invite.tagline} {t.invite.role(invite.role)}
             </p>
-            <div class="mt-8 rounded-lg border border-line bg-sheet p-6 shadow-sm">
+            <div class="mt-8 rounded-lg border border-line border-t-[3px] border-t-accent bg-sheet p-6 shadow-sm">
               {result?.error && <p class="mb-4 text-sm text-red-600">{result.error.message}</p>}
               <form method="POST" action={actions.acceptInvite} class="flex flex-col gap-4">
                 <input type="hidden" name="token" value={invite.token} />
@@ -44,7 +45,7 @@ if (result && !result.error) return Astro.redirect("/");
                   <span class="text-xs font-medium text-neutral-500">
                     {t.auth.name}
                   </span>
-                  <input name="name" required class="rounded border border-line bg-transparent px-3 py-2 text-sm" />
+                  <input name="name" required class="sp-input" />
                 </label>
                 <label class="flex flex-col gap-1.5">
                   <span class="text-xs font-medium text-neutral-500">
@@ -55,10 +56,10 @@ if (result && !result.error) return Astro.redirect("/");
                     type="password"
                     minlength="8"
                     required
-                    class="rounded border border-line bg-transparent px-3 py-2 text-sm"
+                    class="sp-input"
                   />
                 </label>
-                <button class="mt-1 rounded bg-accent px-4 py-2 font-semibold text-on-accent hover:opacity-90">
+                <button class="sp-btn sp-btn-primary mt-1">
                   {t.invite.accept}
                 </button>
               </form>

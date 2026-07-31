@@ -25,6 +25,8 @@ const { role } = await getMembership(Astro.locals.user!.id);
 
 const result = Astro.getActionResult(actions.createIntent);
 if (result && !result.error) return Astro.redirect(`/intents/${result.data.id}`);
+const formatDate = (timestamp: number) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(timestamp);
 
 // POST-redirect-GET for the integration forms on this page.
 const prgResult =
@@ -34,48 +36,62 @@ if (prgResult && !prgResult.error) return Astro.redirect(`/projects/${project.id
 ---
 
 <Base title={pageTitle(project.name)}>
-  <main class="mx-auto max-w-4xl px-6 py-10">
-    <header class="flex flex-wrap items-end justify-between gap-4">
+  <main class="sp-page-narrow">
+    <header class="sp-page-header">
       <div class="min-w-0">
-        <nav class="text-xs text-neutral-500">
-          <a href="/" class="hover:text-accent">{t.nav.projects}</a> /
+        <nav class="sp-eyebrow">
+          <a href="/" class="hover:text-accent">{t.nav.projects}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          {t.projects.eyebrow}
         </nav>
-        <h1 class="mt-1 truncate text-2xl font-bold tracking-tight">{project.name}</h1>
-        {project.description && <p class="mt-1 text-sm text-neutral-500">{project.description}</p>}
+        <h1 class="sp-title truncate">{project.name}</h1>
+        {project.description && <p class="sp-subtitle">{project.description}</p>}
       </div>
       <button
         data-modal-open="new-intent-modal"
-        class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90"
+        class="sp-btn sp-btn-primary"
       >
+        <span aria-hidden="true">+</span>
         {t.intents.create}
       </button>
     </header>
 
-    <section class="mt-6 rounded border border-line bg-sheet">
-      <h2
-        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
-      >
-        {t.intents.listLabel}
-      </h2>
-      <ul class="divide-y divide-line">
+    <section class="sp-panel mt-7">
+      <div class="sp-panel-header">
+        <div>
+          <h2 class="sp-section-title">{t.intents.listLabel}</h2>
+          <p class="sp-section-copy">{t.projects.intentCount(intents.length)}</p>
+        </div>
+      </div>
+      <div class="divide-y divide-line">
         {
           intents.map((intent) => (
-            <li>
-              <a
-                href={`/intents/${intent.id}`}
-                class="flex items-baseline gap-3 px-4 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                <span class="font-medium">{intent.title}</span>
-                {intent.description && (
-                  <span class="min-w-0 truncate text-sm text-neutral-500">{intent.description}</span>
-                )}
-                <span class="ml-auto text-xs text-neutral-400">→</span>
-              </a>
-            </li>
+            <a
+              href={`/intents/${intent.id}`}
+              class="sp-row group grid gap-2 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+              data-searchable
+            >
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-semibold group-hover:text-accent">
+                  {intent.title}
+                </span>
+                <span class="mt-1 block truncate text-xs text-neutral-500">
+                  {intent.description || t.dashboard.emptyDescription}
+                </span>
+              </span>
+              <span class="flex items-center gap-3">
+                <span class="text-xs text-neutral-400">{formatDate(intent.updated_at)}</span>
+                <span class="text-neutral-400" aria-hidden="true">→</span>
+              </span>
+            </a>
           ))
         }
-        {intents.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.intents.empty}</li>}
-      </ul>
+        {
+          intents.length === 0 && (
+            <p class="px-4 py-7 text-center text-sm text-neutral-500">{t.intents.empty}</p>
+          )
+        }
+      </div>
     </section>
 
     {canEdit(role) && <ProjectIntegrations projectId={project.id} />}
@@ -88,14 +104,14 @@ if (prgResult && !prgResult.error) return Astro.redirect(`/projects/${project.id
         name="title"
         required
         placeholder={t.intents.titlePlaceholder}
-        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
       <input
         name="description"
         placeholder={t.intents.descriptionPlaceholder}
-        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
-      <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">
+      <button class="sp-btn sp-btn-primary self-start">
         {t.intents.create}
       </button>
     </form>

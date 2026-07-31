@@ -25,67 +25,89 @@ const specs = await db
 
 const result = Astro.getActionResult(actions.createSpec);
 if (result && !result.error) return Astro.redirect(`/specs/${result.data.id}`);
-
 const statusStamp = (status: string) =>
   status === "in_review"
-    ? "border-review text-review"
+    ? "sp-status-review"
     : status === "frozen"
-      ? "border-frozen text-frozen"
-      : "border-line text-neutral-500";
+      ? "sp-status-frozen"
+      : "";
+const formatDate = (timestamp: number) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(timestamp);
 ---
 
 <Base title={pageTitle(intent.title)}>
-  <main class="mx-auto max-w-4xl px-6 py-10">
-    <header class="flex flex-wrap items-end justify-between gap-4">
+  <main class="sp-page-narrow">
+    <header class="sp-page-header">
       <div class="min-w-0">
-        <nav class="text-xs text-neutral-500">
-          <a href="/" class="hover:text-accent">{t.nav.projects}</a> /
-          <a href={`/projects/${project!.id}`} class="hover:text-accent">{project!.name}</a> /
+        <nav class="sp-eyebrow">
+          <a href="/" class="hover:text-accent">{t.nav.projects}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          <a href={`/projects/${project!.id}`} class="hover:text-accent">{project!.name}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          {t.intents.eyebrow}
         </nav>
-        <h1 class="mt-1 truncate text-2xl font-bold tracking-tight">{intent.title}</h1>
-        {intent.description && <p class="mt-1 text-sm text-neutral-500">{intent.description}</p>}
+        <h1 class="sp-title truncate">{intent.title}</h1>
+        {intent.description && <p class="sp-subtitle">{intent.description}</p>}
       </div>
       <button
         data-modal-open="new-spec-modal"
-        class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90"
+        class="sp-btn sp-btn-primary"
       >
+        <span aria-hidden="true">+</span>
         {t.specs.create}
       </button>
     </header>
 
-    <section class="mt-6 rounded border border-line bg-sheet">
-      <h2
-        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
-      >
-        {t.specs.listLabel}
-      </h2>
-      <ul class="divide-y divide-line">
+    <section class="sp-panel mt-7">
+      <div class="sp-panel-header">
+        <div>
+          <h2 class="sp-section-title">{t.specs.listLabel}</h2>
+          <p class="sp-section-copy">{t.dashboard.specCount(specs.length)}</p>
+        </div>
+      </div>
+      {
+        specs.length > 0 && (
+          <div class="hidden grid-cols-[minmax(0,1fr)_6rem_7rem_6rem] gap-4 border-b border-line bg-paper/50 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-400 sm:grid">
+            <span>{t.dashboard.item}</span>
+            <span>{t.specs.phase}</span>
+            <span>{t.specs.state}</span>
+            <span class="text-right">{t.specs.updated}</span>
+          </div>
+        )
+      }
+      <div class="divide-y divide-line">
         {
           specs.map((spec) => (
-            <li>
-              <a
-                href={`/specs/${spec.id}`}
-                class="flex items-center gap-3 px-4 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                <span class="min-w-0 truncate font-medium">{spec.title}</span>
-                <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+            <a
+              href={`/specs/${spec.id}`}
+              class="sp-row group grid gap-2 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_6rem_7rem_6rem] sm:items-center sm:gap-4"
+              data-searchable
+            >
+              <span class="min-w-0 truncate text-sm font-semibold group-hover:text-accent">
+                {spec.title}
+              </span>
+              <span>
+                <span class="sp-status sp-status-accent">
                   {t.phases.label(spec.phase)}
                 </span>
-                <span
-                  class:list={[
-                    "rounded border px-1.5 py-0.5 text-[11px] font-medium",
-                    statusStamp(spec.status),
-                  ]}
-                >
+              </span>
+              <span>
+                <span class:list={["sp-status", statusStamp(spec.status)]}>
                   {t.lifecycle.statusName(spec.status)}
                 </span>
-                <span class="ml-auto text-xs text-neutral-400">→</span>
-              </a>
-            </li>
+              </span>
+              <span class="text-xs text-neutral-400 sm:text-right">
+                {formatDate(spec.updated_at)}
+              </span>
+            </a>
           ))
         }
-        {specs.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.specs.empty}</li>}
-      </ul>
+        {
+          specs.length === 0 && (
+            <p class="px-4 py-7 text-center text-sm text-neutral-500">{t.specs.empty}</p>
+          )
+        }
+      </div>
     </section>
   </main>
 
@@ -96,7 +118,7 @@ const statusStamp = (status: string) =>
         name="title"
         required
         placeholder={t.specs.titlePlaceholder}
-        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
       <fieldset class="flex flex-col gap-2">
         <legend class="mb-1 text-xs font-semibold text-neutral-500">
@@ -117,7 +139,7 @@ const statusStamp = (status: string) =>
           </span>
         </label>
       </fieldset>
-      <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">
+      <button class="sp-btn sp-btn-primary self-start">
         {t.specs.create}
       </button>
     </form>

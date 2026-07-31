@@ -21,12 +21,12 @@ const { id, title, size = "md", openOnLoad = false } = Astro.props;
   id={id}
   data-open-on-load={openOnLoad ? "true" : undefined}
   class:list={[
-    "m-auto rounded-lg border border-line bg-sheet p-0 text-ink shadow-xl backdrop:bg-ink/30",
+    "m-auto rounded-lg border border-line border-t-[3px] border-t-accent bg-sheet p-0 text-ink shadow-xl backdrop:bg-ink/30",
     size === "lg" ? "w-[min(36rem,92vw)]" : "w-[min(28rem,92vw)]",
   ]}
 >
-  <div class="flex items-center justify-between border-b border-line px-4 py-2.5">
-    <h2 class="text-sm font-semibold">
+  <div class="flex items-center justify-between border-b border-line bg-paper/50 px-4 py-3">
+    <h2 class="text-sm font-bold">
       {title}
     </h2>
     <button

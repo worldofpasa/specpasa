@@ -8,58 +8,191 @@ import { pageTitle, t } from "../lib/strings";
 
 const user = Astro.locals.user!;
 const workspace = await getWorkspace(user.id);
-const projects = await getDb()
+const db = getDb();
+const projects = await db
   .select()
   .from(schema.projects)
   .where(eq(schema.projects.workspace_id, workspace.id))
   .orderBy(desc(schema.projects.updated_at));
+const intents = await db
+  .select({
+    id: schema.intents.id,
+    project_id: schema.intents.project_id,
+    title: schema.intents.title,
+  })
+  .from(schema.intents)
+  .innerJoin(schema.projects, eq(schema.intents.project_id, schema.projects.id))
+  .where(eq(schema.projects.workspace_id, workspace.id));
+const specs = await db
+  .select({
+    id: schema.specs.id,
+    intent_id: schema.specs.intent_id,
+    title: schema.specs.title,
+    status: schema.specs.status,
+    updated_at: schema.specs.updated_at,
+  })
+  .from(schema.specs)
+  .innerJoin(schema.intents, eq(schema.specs.intent_id, schema.intents.id))
+  .innerJoin(schema.projects, eq(schema.intents.project_id, schema.projects.id))
+  .where(eq(schema.projects.workspace_id, workspace.id));
+const commentThreads = await db
+  .select({
+    spec_id: schema.comment_threads.spec_id,
+    resolved_at: schema.comment_threads.resolved_at,
+  })
+  .from(schema.comment_threads)
+  .innerJoin(schema.specs, eq(schema.comment_threads.spec_id, schema.specs.id))
+  .innerJoin(schema.intents, eq(schema.specs.intent_id, schema.intents.id))
+  .innerJoin(schema.projects, eq(schema.intents.project_id, schema.projects.id))
+  .where(eq(schema.projects.workspace_id, workspace.id));
+
+const intentById = new Map(intents.map((intent) => [intent.id, intent]));
+const projectById = new Map(projects.map((project) => [project.id, project]));
+const openThreadsBySpec = new Map<string, number>();
+for (const thread of commentThreads) {
+  if (thread.resolved_at) continue;
+  openThreadsBySpec.set(thread.spec_id, (openThreadsBySpec.get(thread.spec_id) ?? 0) + 1);
+}
+const attention = specs
+  .filter((spec) => spec.status === "in_review" || (openThreadsBySpec.get(spec.id) ?? 0) > 0)
+  .sort((a, b) => b.updated_at - a.updated_at);
+const intentCountByProject = new Map<string, number>();
+const specCountByProject = new Map<string, number>();
+for (const intent of intents) {
+  intentCountByProject.set(intent.project_id, (intentCountByProject.get(intent.project_id) ?? 0) + 1);
+}
+for (const spec of specs) {
+  const projectId = intentById.get(spec.intent_id)?.project_id;
+  if (projectId) specCountByProject.set(projectId, (specCountByProject.get(projectId) ?? 0) + 1);
+}
+const formatDate = (timestamp: number) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(timestamp);
 
 const result = Astro.getActionResult(actions.createProject);
 if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`);
 ---
 
 <Base title={pageTitle(workspace.name)}>
-  <main class="mx-auto max-w-4xl px-6 py-10">
-    <header class="flex flex-wrap items-end justify-between gap-4">
+  <main class="sp-page">
+    <header class="sp-page-header">
       <div>
-        <p class="text-xs font-medium text-neutral-500">
-          {t.nav.projects}
-        </p>
-        <h1 class="mt-1 text-2xl font-bold tracking-tight">{workspace.name}</h1>
+        <p class="sp-eyebrow">{t.dashboard.eyebrow}</p>
+        <h1 class="sp-title">{t.dashboard.greeting(user.name.split(/\s+/)[0] ?? user.name)}</h1>
+        <p class="sp-subtitle">{t.dashboard.tagline}</p>
       </div>
       <button
         data-modal-open="new-project-modal"
-        class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90"
+        class="sp-btn sp-btn-primary"
       >
+        <span aria-hidden="true">+</span>
         {t.projects.create}
       </button>
     </header>
 
-    <section class="mt-6 rounded border border-line bg-sheet">
-      <h2
-        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
-      >
-        {t.projects.listLabel}
-      </h2>
-      <ul class="divide-y divide-line">
+    <section id="attention" class="sp-panel mt-7 scroll-mt-24">
+      <div class="sp-panel-header">
+        <div>
+          <h2 class="sp-section-title">{t.dashboard.attentionHeading}</h2>
+          <p class="sp-section-copy">{t.dashboard.attentionTagline}</p>
+        </div>
+        <span class:list={["sp-status", attention.length > 0 && "sp-status-review"]}>
+          {attention.length}
+        </span>
+      </div>
+      {
+        attention.length > 0 && (
+          <div class="hidden grid-cols-[minmax(0,2fr)_minmax(8rem,1fr)_9rem_6rem] gap-4 border-b border-line bg-paper/50 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-400 md:grid">
+            <span>{t.dashboard.item}</span>
+            <span>{t.dashboard.location}</span>
+            <span>{t.dashboard.review}</span>
+            <span class="text-right">{t.dashboard.updated}</span>
+          </div>
+        )
+      }
+      <div class="divide-y divide-line">
         {
-          projects.map((project) => (
-            <li>
+          attention.map((spec) => {
+            const intent = intentById.get(spec.intent_id);
+            const project = intent ? projectById.get(intent.project_id) : undefined;
+            const threads = openThreadsBySpec.get(spec.id) ?? 0;
+            return (
+              <a
+                href={`/specs/${spec.id}`}
+                class="sp-row grid gap-2 px-4 py-3.5 md:grid-cols-[minmax(0,2fr)_minmax(8rem,1fr)_9rem_6rem] md:items-center md:gap-4"
+                data-searchable
+              >
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-semibold">{spec.title}</span>
+                  <span class="mt-0.5 block truncate text-xs text-neutral-500">
+                    {intent?.title}
+                  </span>
+                </span>
+                <span class="truncate text-xs text-neutral-500">{project?.name}</span>
+                <span class="flex flex-wrap items-center gap-1.5">
+                  <span class="sp-status sp-status-review">
+                    {threads > 0 ? t.dashboard.openThreads(threads) : t.dashboard.readyForReview}
+                  </span>
+                </span>
+                <span class="text-xs text-neutral-400 md:text-right">
+                  {formatDate(spec.updated_at)}
+                </span>
+              </a>
+            );
+          })
+        }
+        {
+          attention.length === 0 && (
+            <p class="px-4 py-7 text-center text-sm text-neutral-500">{t.dashboard.allClear}</p>
+          )
+        }
+      </div>
+    </section>
+
+    <section class="sp-panel mt-7">
+      <div class="sp-panel-header">
+        <div>
+          <h2 class="sp-section-title">{t.dashboard.projectHeading}</h2>
+          <p class="sp-section-copy">{t.dashboard.projectTagline}</p>
+        </div>
+        <span class="sp-status">{projects.length}</span>
+      </div>
+      <div class="divide-y divide-line">
+        {
+          projects.map((project) => {
+            const intentCount = intentCountByProject.get(project.id) ?? 0;
+            const specCount = specCountByProject.get(project.id) ?? 0;
+            return (
               <a
                 href={`/projects/${project.id}`}
-                class="flex items-baseline gap-3 px-4 py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                class="sp-row group grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                data-searchable
               >
-                <span class="font-medium">{project.name}</span>
-                {project.description && (
-                  <span class="min-w-0 truncate text-sm text-neutral-500">{project.description}</span>
-                )}
-                <span class="ml-auto text-xs text-neutral-400">→</span>
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-semibold group-hover:text-accent">
+                    {project.name}
+                  </span>
+                  <span class="mt-1 block truncate text-xs text-neutral-500">
+                    {project.description || t.dashboard.emptyDescription}
+                  </span>
+                </span>
+                <span class="flex items-center gap-3">
+                  <span class="font-mono text-[11px] text-neutral-500">
+                    {t.dashboard.projectSummary(intentCount, specCount)}
+                  </span>
+                  <span class="text-neutral-400" aria-hidden="true">
+                    →
+                  </span>
+                </span>
               </a>
-            </li>
-          ))
+            );
+          })
         }
-        {projects.length === 0 && <li class="px-4 py-6 text-sm text-neutral-500">{t.projects.empty}</li>}
-      </ul>
+        {
+          projects.length === 0 && (
+            <p class="px-4 py-7 text-center text-sm text-neutral-500">{t.projects.empty}</p>
+          )
+        }
+      </div>
     </section>
   </main>
 
@@ -69,14 +202,14 @@ if (result && !result.error) return Astro.redirect(`/projects/${result.data.id}`
         name="name"
         required
         placeholder={t.projects.namePlaceholder}
-        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
       <input
         name="description"
         placeholder={t.projects.descriptionPlaceholder}
-        class="rounded border border-line bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400"
+        class="sp-input"
       />
-      <button class="self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90">
+      <button class="sp-btn sp-btn-primary self-start">
         {t.projects.create}
       </button>
     </form>

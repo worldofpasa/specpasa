@@ -268,7 +268,7 @@ function Sheet({
   openCounts: Record<string, number>;
 }) {
   return (
-    <div className="relative mx-auto w-full max-w-3xl rounded-lg border border-line bg-sheet px-12 py-10 shadow-sm">
+    <div className="relative mx-auto w-full max-w-3xl rounded-lg border border-line border-t-[3px] border-t-accent bg-sheet px-6 py-8 shadow-sm sm:px-12 sm:py-10">
       {blocks.length === 0 ? (
         <p className="text-sm text-neutral-500">{t.workspace.emptySheet}</p>
       ) : (
@@ -595,13 +595,13 @@ function WorkspaceToolbar({
           <div className="flex overflow-hidden rounded border border-neutral-300 text-xs dark:border-neutral-700">
             <button
               onClick={() => setMode("reading")}
-              className={`px-3 py-1 ${mode === "reading" ? "bg-ink text-paper" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`px-3 py-1 ${mode === "reading" ? "bg-accent text-on-accent" : "hover:bg-accent-soft hover:text-accent"}`}
             >
               {t.workspace.reading}
             </button>
             <button
               onClick={() => setMode("edit")}
-              className={`px-3 py-1 ${mode === "edit" ? "bg-ink text-paper" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`}
+              className={`px-3 py-1 ${mode === "edit" ? "bg-accent text-on-accent" : "hover:bg-accent-soft hover:text-accent"}`}
             >
               {t.workspace.editing}
             </button>
@@ -611,7 +611,7 @@ function WorkspaceToolbar({
           <button
             onClick={onSave}
             disabled={saving || !dirty}
-            className="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
+            className="sp-btn sp-btn-primary sp-btn-sm disabled:opacity-40"
           >
             {saving ? t.editor.saving : t.editor.save}
           </button>
@@ -637,7 +637,7 @@ function LeftRail({
 }) {
   return (
     <aside
-      className={`sticky top-6 hidden max-h-[85vh] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
+      className={`sticky top-20 hidden max-h-[calc(100vh-6rem)] shrink-0 flex-col self-start overflow-y-auto lg:flex ${leftOpen ? "w-60" : "w-8"}`}
     >
       <button
         onClick={() => setLeftOpen((v) => !v)}
@@ -673,7 +673,7 @@ function EditorPane({
   onDiscard: () => void;
 }) {
   return (
-    <div className="mx-auto w-full max-w-3xl rounded-lg border border-line bg-sheet shadow-sm">
+    <div className="mx-auto w-full max-w-3xl rounded-lg border border-line border-t-[3px] border-t-accent bg-sheet shadow-sm">
       {restoredDraft && (
         <p className="flex items-center gap-3 border-b border-dashed border-line bg-review-soft/60 px-6 py-2 text-xs text-review">
           {t.editor.draftRestored}
