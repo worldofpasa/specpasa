@@ -31,8 +31,6 @@ interface Props {
   frozen: boolean;
   providers: ProviderOption[];
   blocks: SpecBlock[];
-  /** All revision numbers, oldest first — rendered as the revision strip. */
-  versions: number[];
   /** Attached references — Ask-AI context chips (#31). */
   referenceOptions: ReferenceOption[];
   /** Working draft newer than the current version, if any (#32). */
@@ -284,44 +282,6 @@ function Sheet({
         </div>
       )}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Revision strip (bottom dock) — every version as a labelled cell
-
-function RevisionStrip({
-  specId,
-  versions,
-  versionNumber,
-}: Pick<Props, "specId" | "versions" | "versionNumber">) {
-  if (versions.length === 0) return null;
-  return (
-    <nav
-      aria-label={t.versions.heading}
-      className="flex min-w-0 flex-1 overflow-x-auto rounded border border-line bg-sheet"
-    >
-      {versions.map((n) => {
-        const isCurrent = n === versionNumber;
-        return (
-          <a
-            key={n}
-            href={isCurrent ? `/specs/${specId}/versions` : `/specs/${specId}/versions/${n}`}
-            className="flex flex-col border-r border-line px-3 py-1.5 last:border-r-0 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-          >
-            <span className="text-[10px] font-medium text-neutral-400">
-              {t.workspace.titleBlock.rev}
-            </span>
-            <span
-              className={`font-mono text-xs font-medium ${isCurrent ? "text-accent" : "text-neutral-500"}`}
-            >
-              {t.versions.versionBase(n)}
-              {isCurrent ? " ●" : ""}
-            </span>
-          </a>
-        );
-      })}
-    </nav>
   );
 }
 
@@ -813,7 +773,6 @@ export default function SpecWorkspace(props: Props) {
     frozen,
     providers,
     blocks,
-    versions,
     referenceOptions,
     draft,
     canEditDoc,
@@ -913,26 +872,19 @@ export default function SpecWorkspace(props: Props) {
         )}
         {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
 
-        {/* Bottom dock: revision strip left, Ask-AI tray centered on the
-            content column (The Study, #18/#25). */}
-        <div className="sticky bottom-4 z-20 mt-6 grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
-          <div className="flex min-w-0 items-stretch">
-            <RevisionStrip specId={specId} versions={versions} versionNumber={versionNumber} />
+        {/* Ask AI remains centered and independent of revision navigation. */}
+        {canEditDoc && (
+          <div className="sticky bottom-4 z-20 mt-6 flex justify-center">
+            <FloatingAi
+              specId={specId}
+              versionNumber={versionNumber}
+              frozen={frozen}
+              providers={providers}
+              referenceOptions={referenceOptions}
+              openComments={Object.values(openCounts).reduce((sum, n) => sum + n, 0)}
+            />
           </div>
-          <div className="flex items-stretch">
-            {canEditDoc && (
-              <FloatingAi
-                specId={specId}
-                versionNumber={versionNumber}
-                frozen={frozen}
-                providers={providers}
-                referenceOptions={referenceOptions}
-                openComments={Object.values(openCounts).reduce((sum, n) => sum + n, 0)}
-              />
-            )}
-          </div>
-          <div aria-hidden="true" />
-        </div>
+        )}
       </section>
     </div>
   );

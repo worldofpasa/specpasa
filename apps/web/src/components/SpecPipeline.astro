@@ -1,11 +1,14 @@
 ---
 import { t } from "../lib/strings";
+import VersionDropdown from "./VersionDropdown.astro";
 
 interface Step {
   phase: string;
+  specId?: string;
   href?: string;
   status?: string;
   version?: number;
+  versions: { number: number; current: boolean }[];
   active: boolean;
   blockedBy?: string;
 }
@@ -21,39 +24,6 @@ const { steps } = Astro.props;
   <ol class="grid divide-y divide-line sm:grid-cols-4 sm:divide-x sm:divide-y-0">
     {
       steps.map((step, index) => {
-        const content = (
-          <>
-            <span class="flex items-center justify-between gap-2">
-              <span class="text-xs font-bold tracking-[-0.01em]">
-                {String(index + 1).padStart(2, "0")} · {t.phases.label(step.phase)}
-              </span>
-              <span
-                class:list={[
-                  "text-[10px] font-bold uppercase tracking-[0.06em]",
-                  step.status === "in_review" && "text-review",
-                  step.status === "frozen" && "text-frozen",
-                  step.active && step.status !== "in_review" && step.status !== "frozen"
-                    ? "text-accent"
-                    : "text-neutral-400",
-                ]}
-              >
-                {step.status
-                  ? t.lifecycle.statusName(step.status)
-                  : step.blockedBy
-                    ? t.pipeline.blocked
-                    : t.pipeline.notStarted}
-              </span>
-            </span>
-            <span class="mt-1 block truncate text-xs text-neutral-500">
-              {step.version !== undefined
-                ? t.pipeline.version(step.version)
-                : step.blockedBy
-                  ? t.pipeline.requires(step.blockedBy)
-                  : t.pipeline.ready}
-            </span>
-          </>
-        );
-
         return (
           <li
             class:list={[
@@ -61,17 +31,58 @@ const { steps } = Astro.props;
               step.active && "after:absolute after:inset-x-0 after:top-0 after:h-[3px] after:bg-accent",
             ]}
           >
-            {step.href ? (
-              <a
-                href={step.href}
-                aria-current={step.active ? "step" : undefined}
-                class="sp-row block min-h-[4.75rem] px-4 py-3"
-              >
-                {content}
-              </a>
-            ) : (
-              <span class="block min-h-[4.75rem] px-4 py-3 opacity-70">{content}</span>
-            )}
+            <div class="sp-row min-h-[5.5rem] px-4 py-3">
+              <span class="flex items-center justify-between gap-2">
+                {
+                  step.href ? (
+                    <a
+                      href={step.href}
+                      aria-current={step.active ? "step" : undefined}
+                      class="text-xs font-bold tracking-[-0.01em] hover:text-accent"
+                    >
+                      {String(index + 1).padStart(2, "0")} · {t.phases.label(step.phase)}
+                    </a>
+                  ) : (
+                    <span class="text-xs font-bold tracking-[-0.01em]">
+                      {String(index + 1).padStart(2, "0")} · {t.phases.label(step.phase)}
+                    </span>
+                  )
+                }
+                <span
+                  class:list={[
+                    "text-[10px] font-bold uppercase tracking-[0.06em]",
+                    step.status === "in_review" && "text-review",
+                    step.status === "frozen" && "text-frozen",
+                    step.active && step.status !== "in_review" && step.status !== "frozen"
+                      ? "text-accent"
+                      : "text-neutral-400",
+                  ]}
+                >
+                  {step.status
+                    ? t.lifecycle.statusName(step.status)
+                    : step.blockedBy
+                      ? t.pipeline.blocked
+                      : t.pipeline.notStarted}
+                </span>
+              </span>
+              {
+                step.specId && step.version !== undefined && step.versions.length > 0 ? (
+                  <div class="mt-2">
+                    <VersionDropdown
+                      specId={step.specId}
+                      versions={step.versions}
+                      selectedNumber={step.version}
+                    />
+                  </div>
+                ) : step.specId ? (
+                  <span class="mt-1 block text-xs text-neutral-500">{t.editor.blankSpec}</span>
+                ) : (
+                  <span class="mt-1 block truncate text-xs text-neutral-500">
+                    {step.blockedBy ? t.pipeline.requires(step.blockedBy) : t.pipeline.ready}
+                  </span>
+                )
+              }
+            </div>
           </li>
         );
       })

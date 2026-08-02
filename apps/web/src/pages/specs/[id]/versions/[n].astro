@@ -2,6 +2,7 @@
 import { marked } from "marked";
 import { diffBlocks, fencedContent, type SpecBlock } from "@specpasa/core";
 import Base from "../../../../layouts/Base.astro";
+import VersionDropdown from "../../../../components/VersionDropdown.astro";
 import Mermaid from "../../../../islands/Mermaid";
 import { getDb, schema, and, asc, eq } from "../../../../lib/db";
 import { pageTitle, t } from "../../../../lib/strings";
@@ -31,7 +32,7 @@ const diffBase = version.parent_version_id
   ? t.versions.versionBase(version.number - 1)
   : t.versions.blankBase;
 
-// Every revision for the strip — hop between versions without browser-back (#28).
+// Every revision feeds the compact header dropdown.
 const allVersions = (
   await db
     .select({ number: schema.spec_versions.number, id: schema.spec_versions.id })
@@ -64,6 +65,14 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
             )
           }
         </h1>
+        <div class="mt-2 flex flex-wrap items-center gap-3">
+          <span class="sp-status sp-status-accent">{t.phases.label(spec.phase)}</span>
+          <VersionDropdown
+            specId={spec.id}
+            versions={allVersions}
+            selectedNumber={version.number}
+          />
+        </div>
         <p class="sp-subtitle">
           {t.versions.diffSummary(diffBase, diff.added.length, diff.removed.length, diff.unchanged.length)}
         </p>
@@ -116,34 +125,5 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
       </div>
     </div>
 
-    <nav
-      aria-label={t.versions.heading}
-      class="sticky bottom-4 mt-6 flex w-fit overflow-x-auto rounded border border-line bg-sheet"
-    >
-      {
-        allVersions.map((entry) => (
-          <a
-            href={`/specs/${spec.id}/versions/${entry.number}`}
-            class:list={[
-              "flex flex-col border-r border-line px-3 py-1.5 last:border-r-0 hover:bg-neutral-100 dark:hover:bg-neutral-800",
-              entry.number === version.number && "bg-accent-soft",
-            ]}
-          >
-            <span class="text-[10px] font-medium text-neutral-400">
-              {t.workspace.titleBlock.rev}
-            </span>
-            <span
-              class:list={[
-                "font-mono text-xs font-medium",
-                entry.number === version.number ? "text-accent" : "text-neutral-500",
-              ]}
-            >
-              {t.versions.versionBase(entry.number)}
-              {entry.current ? " ●" : ""}
-            </span>
-          </a>
-        ))
-      }
-    </nav>
   </main>
 </Base>

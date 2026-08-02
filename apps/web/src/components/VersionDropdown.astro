@@ -1,0 +1,51 @@
+---
+import { t } from "../lib/strings";
+
+interface VersionEntry {
+  number: number;
+  current: boolean;
+}
+
+interface Props {
+  specId: string;
+  versions: VersionEntry[];
+  selectedNumber: number;
+}
+
+const { specId, versions, selectedNumber } = Astro.props;
+const newestFirst = [...versions].sort((a, b) => b.number - a.number);
+---
+
+<label class="inline-flex min-w-0 items-center gap-2">
+  <span class="text-[10px] font-semibold uppercase tracking-[0.06em] text-neutral-400">
+    {t.versions.dropdownLabel}
+  </span>
+  <select
+    data-version-navigation
+    aria-label={t.versions.selectVersion}
+    class="min-w-20 rounded-md border border-line bg-sheet px-2 py-1 font-mono text-[11px] font-semibold text-ink outline-none hover:border-accent/40 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+  >
+    {
+      newestFirst.map((version) => (
+        <option
+          value={version.current
+            ? `/specs/${specId}`
+            : `/specs/${specId}/versions/${version.number}`}
+          selected={version.number === selectedNumber}
+        >
+          {t.versions.dropdownOption(version.number, version.current)}
+        </option>
+      ))
+    }
+  </select>
+</label>
+
+<script>
+  document.querySelectorAll<HTMLSelectElement>("[data-version-navigation]").forEach((select) => {
+    if (select.dataset.navigationBound) return;
+    select.dataset.navigationBound = "true";
+    select.addEventListener("change", () => {
+      window.location.assign(select.value);
+    });
+  });
+</script>

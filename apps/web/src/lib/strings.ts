@@ -171,6 +171,9 @@ export const t = {
   },
   versions: {
     heading: "Version history",
+    dropdownLabel: "Versions",
+    selectVersion: "Open a saved version",
+    dropdownOption: (n: number, current: boolean) => `v${n}${current ? " · current" : ""}`,
     crumb: "versions",
     titleFor: (spec: string) => pageTitle("Versions", spec),
     empty: "No versions yet.",

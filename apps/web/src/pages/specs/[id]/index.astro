@@ -141,28 +141,37 @@ while (lineageCursor) {
   lineage.set(child.phase, child);
   lineageCursor = child;
 }
+const pipelineVersions = await db
+  .select({
+    id: schema.spec_versions.id,
+    number: schema.spec_versions.number,
+    specId: schema.spec_versions.spec_id,
+  })
+  .from(schema.spec_versions)
+  .innerJoin(schema.specs, eq(schema.spec_versions.spec_id, schema.specs.id))
+  .where(eq(schema.specs.intent_id, spec.intent_id));
 const currentVersionNumberById = new Map(
-  (
-    await db
-      .select({
-        id: schema.spec_versions.id,
-        number: schema.spec_versions.number,
-      })
-      .from(schema.spec_versions)
-      .innerJoin(schema.specs, eq(schema.specs.current_version_id, schema.spec_versions.id))
-      .where(eq(schema.specs.intent_id, spec.intent_id))
-  ).map((version) => [version.id, version.number]),
+  pipelineVersions.map((version) => [version.id, version.number]),
 );
 const pipelineSteps = phases.map((phase, index) => {
   const lineageSpec = lineage.get(phase);
   const prior = index > 0 ? lineage.get(phases[index - 1]!) : undefined;
   return {
     phase,
+    specId: lineageSpec?.id,
     href: lineageSpec ? `/specs/${lineageSpec.id}` : undefined,
     status: lineageSpec?.status,
     version: lineageSpec?.current_version_id
       ? currentVersionNumberById.get(lineageSpec.current_version_id)
       : undefined,
+    versions: lineageSpec
+      ? pipelineVersions
+          .filter((version) => version.specId === lineageSpec.id)
+          .map((version) => ({
+            number: version.number,
+            current: version.id === lineageSpec.current_version_id,
+          }))
+      : [],
     active: phase === spec.phase,
     blockedBy: !lineageSpec && index > phases.indexOf(spec.phase) && prior?.status !== "frozen"
       ? phases[index - 1]
@@ -253,9 +262,7 @@ const interviewSkills = [
             {t.lifecycle.statusName(spec.status)}
           </span>
         </div>
-        <p class="sp-subtitle font-mono">
-          {t.phases.label(spec.phase)} · v{current?.number ?? 0}
-        </p>
+        <p class="sp-subtitle font-mono">{t.phases.label(spec.phase)}</p>
       </div>
       <div class="flex flex-wrap items-center justify-end gap-2">
         <PresenceChips client:load selfId={Astro.locals.user!.id} />
@@ -335,7 +342,6 @@ const interviewSkills = [
           frozen={spec.status === "frozen"}
           providers={providers}
           blocks={current?.blocks ?? []}
-          versions={versionNumbers}
           referenceOptions={referenceOptions}
           draft={draft}
           canEditDoc={canEdit(role)}
