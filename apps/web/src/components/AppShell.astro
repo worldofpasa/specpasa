@@ -1,0 +1,246 @@
+---
+import { actions } from "astro:actions";
+import type { SessionUser } from "../lib/auth";
+import { initials } from "../lib/presence";
+import { APP_MARK, APP_NAME, t } from "../lib/strings";
+
+interface Props {
+  user: SessionUser;
+  workspaceName: string;
+  pathname: string;
+}
+
+const { user, workspaceName, pathname } = Astro.props;
+const projectActive =
+  pathname === "/" ||
+  pathname.startsWith("/projects/") ||
+  pathname.startsWith("/intents/") ||
+  pathname.startsWith("/specs/");
+
+const navigation = [
+  { href: "/", label: t.shell.today, icon: "home", active: pathname === "/" },
+  { href: "/#attention", label: t.shell.reviewQueue, icon: "review", active: false },
+  { href: "/", label: t.nav.projects, icon: "projects", active: projectActive && pathname !== "/" },
+  {
+    href: "/settings/members",
+    label: t.nav.members,
+    icon: "members",
+    active: pathname.startsWith("/settings/members"),
+  },
+  {
+    href: "/settings/providers",
+    label: t.nav.providers,
+    icon: "providers",
+    active: pathname.startsWith("/settings/providers"),
+  },
+  {
+    href: "/settings/templates",
+    label: t.nav.templates,
+    icon: "templates",
+    active: pathname.startsWith("/settings/templates"),
+  },
+] as const;
+---
+
+<div class="min-h-screen lg:grid lg:grid-cols-[15.75rem_minmax(0,1fr)] lg:grid-rows-[3.875rem_auto]">
+  <header
+    class="sticky top-0 z-40 flex h-[3.875rem] items-center border-b border-line bg-sheet/95 backdrop-blur lg:col-span-2 lg:grid lg:grid-cols-[15.75rem_minmax(0,1fr)_auto]"
+  >
+    <a
+      href="/"
+      class="flex h-full items-center gap-2.5 px-4 lg:border-r lg:border-line lg:px-5"
+      aria-label={t.shell.homeLabel}
+    >
+      <span
+        class="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-[10px] font-bold tracking-tight text-on-accent"
+        aria-hidden="true"
+      >
+        {APP_MARK}
+      </span>
+      <span class="text-lg font-bold tracking-[-0.04em]">{APP_NAME}</span>
+    </a>
+
+    <label class="ml-3 hidden max-w-xl items-center gap-2 px-3 text-sm text-neutral-500 md:flex">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        class="h-4 w-4 shrink-0"
+        aria-hidden="true"
+      >
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <span class="sr-only">{t.shell.search}</span>
+      <input
+        type="search"
+        data-global-search
+        placeholder={t.shell.search}
+        class="w-full border-0 bg-transparent py-2 text-sm text-ink outline-none placeholder:text-neutral-400"
+      />
+    </label>
+
+    <div class="ml-auto flex items-center gap-2 px-3 lg:px-5">
+      <span class="hidden items-center gap-2 text-sm sm:flex">
+        {
+          user.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user.name}
+              class="h-7 w-7 rounded-full object-cover ring-2 ring-accent-soft"
+            />
+          ) : (
+            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-[9px] font-semibold text-paper">
+              {initials(user.name)}
+            </span>
+          )
+        }
+        <span class="hidden text-neutral-600 xl:inline dark:text-neutral-300">{user.name}</span>
+      </span>
+      <button
+        id="theme-toggle"
+        type="button"
+        class="flex h-8 w-8 items-center justify-center rounded-md border border-line text-xs text-neutral-500 hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
+        data-label-system={t.nav.theme.system}
+        data-label-light={t.nav.theme.light}
+        data-label-dark={t.nav.theme.dark}
+        data-glyph-system={t.nav.theme.glyphSystem}
+        data-glyph-light={t.nav.theme.glyphLight}
+        data-glyph-dark={t.nav.theme.glyphDark}
+      />
+      <form method="POST" action={"/login" + actions.logout} class="hidden sm:block">
+        <button class="sp-btn sp-btn-ghost sp-btn-sm">{t.nav.logout}</button>
+      </form>
+      <details class="relative lg:hidden">
+        <summary
+          class="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-line text-neutral-500"
+          aria-label={t.shell.openNavigation}
+        >
+          ☰
+        </summary>
+        <nav
+          class="absolute right-0 top-10 z-50 w-64 rounded-lg border border-line bg-sheet p-2 shadow-xl"
+        >
+          <p class="px-2 pb-2 pt-1 text-xs font-semibold text-ink">{workspaceName}</p>
+          {
+            navigation.map((item) => (
+              <a
+                href={item.href}
+                class:list={[
+                  "flex items-center rounded-md px-3 py-2 text-sm",
+                  item.active
+                    ? "bg-accent-soft font-semibold text-accent"
+                    : "text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800",
+                ]}
+              >
+                {item.label}
+              </a>
+            ))
+          }
+          <form method="POST" action={"/login" + actions.logout} class="border-t border-line pt-2 sm:hidden">
+            <button class="w-full rounded-md px-3 py-2 text-left text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              {t.nav.logout}
+            </button>
+          </form>
+        </nav>
+      </details>
+    </div>
+  </header>
+
+  <aside class="sticky top-[3.875rem] hidden h-[calc(100vh-3.875rem)] flex-col border-r border-line bg-sheet lg:flex">
+    <div class="p-3">
+      <a
+        href="/"
+        class="flex items-center gap-3 rounded-lg border border-line bg-sheet p-2.5 hover:border-accent/40"
+      >
+        <span
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-[10px] font-bold text-on-accent"
+        >
+          {workspaceName
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join("")
+            .toUpperCase()}
+        </span>
+        <span class="min-w-0">
+          <span class="block truncate text-xs font-semibold">{workspaceName}</span>
+          <span class="mt-0.5 block text-[10px] text-neutral-500">{t.shell.workspace}</span>
+        </span>
+      </a>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 pb-4">
+      <p class="px-2 pb-1 pt-2 text-[10px] font-semibold tracking-[0.1em] text-neutral-400">
+        {t.shell.focus}
+      </p>
+      {
+        navigation.slice(0, 3).map((item) => (
+          <a
+            href={item.href}
+            class:list={[
+              "group flex items-center gap-3 rounded-md px-2.5 py-2 text-sm",
+              item.active
+                ? "bg-accent-soft font-semibold text-accent"
+                : "text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800",
+            ]}
+          >
+            <span class="flex h-4 w-4 items-center justify-center text-xs" aria-hidden="true">
+              {item.icon === "home" ? "⌂" : item.icon === "review" ? "▣" : "□"}
+            </span>
+            {item.label}
+          </a>
+        ))
+      }
+
+      <p class="mt-5 px-2 pb-1 text-[10px] font-semibold tracking-[0.1em] text-neutral-400">
+        {t.shell.workspace}
+      </p>
+      {
+        navigation.slice(3).map((item) => (
+          <a
+            href={item.href}
+            class:list={[
+              "group flex items-center gap-3 rounded-md px-2.5 py-2 text-sm",
+              item.active
+                ? "bg-accent-soft font-semibold text-accent"
+                : "text-neutral-500 hover:bg-neutral-100 hover:text-ink dark:hover:bg-neutral-800",
+            ]}
+          >
+            <span class="flex h-4 w-4 items-center justify-center text-xs" aria-hidden="true">
+              {item.icon === "members" ? "◎" : item.icon === "providers" ? "✦" : "▤"}
+            </span>
+            {item.label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <div class="border-t border-line p-4">
+      <p class="flex items-center gap-2 text-xs font-semibold">
+        <span class="h-2 w-2 rounded-full bg-accent"></span>
+        {t.shell.selfHosted}
+      </p>
+      <p class="ml-4 mt-1 text-[10px] leading-relaxed text-neutral-500">
+        {t.shell.dataControl}
+      </p>
+    </div>
+  </aside>
+
+  <div class="min-w-0 lg:col-start-2 lg:row-start-2">
+    <slot />
+  </div>
+</div>
+
+<script>
+  const search = document.querySelector<HTMLInputElement>("[data-global-search]");
+  search?.addEventListener("input", () => {
+    const query = search.value.trim().toLocaleLowerCase();
+    const rows = document.querySelectorAll<HTMLElement>("[data-searchable]");
+    rows.forEach((row) => {
+      row.classList.toggle("hidden", Boolean(query) && !row.textContent?.toLocaleLowerCase().includes(query));
+    });
+    window.dispatchEvent(new CustomEvent("specpasa:search", { detail: { query } }));
+  });
+</script>

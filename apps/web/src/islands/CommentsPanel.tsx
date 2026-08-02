@@ -190,9 +190,9 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
     : {};
 
   return (
-    <div className="rounded border border-line bg-sheet">
-      <div className="flex items-baseline justify-between gap-2 border-b border-line px-3 py-2">
-        <h2 className="text-xs font-semibold text-neutral-500">{t.comments.heading}</h2>
+    <div className="sp-panel">
+      <div className="sp-panel-header">
+        <h2 className="sp-section-title uppercase tracking-[0.08em]">{t.comments.heading}</h2>
         <p
           className={`text-[11px] ${open > 0 ? "text-review" : "text-neutral-400"}`}
           data-testid="review-summary"
@@ -220,19 +220,19 @@ export default function CommentsPanel({ specId, blocks, canComment }: Props) {
               onChange={(e) => setBody(e.target.value)}
               rows={3}
               placeholder={t.comments.placeholder}
-              className="mt-2 w-full rounded border border-line bg-transparent px-2 py-1.5 text-sm placeholder:text-neutral-400"
+              className="sp-input mt-2"
             />
             <div className="mt-2 flex gap-2">
               <button
                 onClick={() => void post()}
                 disabled={busy || !body.trim()}
-                className="rounded bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
+                className="sp-btn sp-btn-primary sp-btn-sm disabled:opacity-40"
               >
                 {t.comments.post}
               </button>
               <button
                 onClick={() => setComposerBlockId(null)}
-                className="text-xs text-neutral-500 hover:underline"
+                className="sp-btn sp-btn-ghost sp-btn-sm"
               >
                 {t.comments.cancel}
               </button>

@@ -44,36 +44,39 @@ const addedIds = new Set(diff.added.map((block) => block.block_id));
 ---
 
 <Base title={pageTitle(t.versions.versionBase(version.number), spec.title)}>
-  <main class="mx-auto max-w-4xl px-6 py-10">
-    <header class="flex flex-wrap items-end justify-between gap-4">
+  <main class="sp-page-narrow">
+    <header class="sp-page-header">
       <div class="min-w-0">
-        <nav class="text-xs text-neutral-500">
-          <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> /
-          <a href={`/specs/${spec.id}/versions`} class="hover:text-accent">{t.versions.crumb}</a> / v{version.number}
+        <nav class="sp-eyebrow">
+          <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          <a href={`/specs/${spec.id}/versions`} class="hover:text-accent">{t.versions.crumb}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          v{version.number}
         </nav>
-        <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold tracking-tight">
+        <h1 class="sp-title flex items-center gap-3">
           {t.editor.version(version.number)}
           {
             version.ai_generated && (
-              <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+              <span class="sp-status sp-status-accent">
                 {t.versions.aiBadge}
               </span>
             )
           }
         </h1>
-        <p class="mt-1 text-sm text-neutral-500">
+        <p class="sp-subtitle">
           {t.versions.diffSummary(diffBase, diff.added.length, diff.removed.length, diff.unchanged.length)}
         </p>
       </div>
       <a
         href={`/specs/${spec.id}`}
-        class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90"
+        class="sp-btn sp-btn-primary"
       >
         {t.versions.backToWorkspace}
       </a>
     </header>
 
-    <div class="mt-6 rounded border border-line bg-sheet px-12 py-10 shadow-sm">
+    <div class="mt-7 rounded-lg border border-line border-t-[3px] border-t-accent bg-sheet px-6 py-8 shadow-sm sm:px-12 sm:py-10">
       <div class="flex flex-col gap-3">
         {
           version.blocks.map((block) => {

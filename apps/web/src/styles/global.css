@@ -8,11 +8,9 @@
 @import "@fontsource/ibm-plex-mono/600.css";
 
 /*
- * "Worksurface" design system — the enterprise successor to "The Study"
- * (design epic #11). Optimized for long-session editing: one legible UI
- * face (Inter) at regular case, mint-tinted neutral surfaces with a single
- * mint-teal accent (WCAG AA on white), and mono reserved for code, IDs,
- * and version numbers.
+ * "Worksurface" — the production system validated by the workbench/control
+ * prototype. Neutral, low-fatigue enterprise surfaces with one mint-green
+ * interaction voice. Mono remains reserved for code, IDs, and revisions.
  *
  * Dark mode is driven by data-theme on <html>, stamped before paint by the
  * inline script in Base.astro (localStorage override, OS preference default).
@@ -21,26 +19,26 @@
 
 /* Theme-switching semantic tokens: one class works in both themes. */
 :root {
-  --th-paper: #e4efec;
-  --th-sheet: #fbfdfc;
-  --th-ink: #24303a;
-  --th-line: #cfdeda;
+  --th-paper: #f3f5f7;
+  --th-sheet: #ffffff;
+  --th-ink: #17212d;
+  --th-line: #d7dee6;
   --th-accent: #1f7a6d;
-  --th-accent-soft: #d9ebe6;
+  --th-accent-soft: #dff1eb;
   --th-on-accent: #ffffff;
-  --th-review: #9a6700;
-  --th-review-soft: #faf0d3;
-  --th-frozen: #57687d;
-  --th-frozen-soft: #e8edf3;
+  --th-review: #a45f0c;
+  --th-review-soft: #fff2df;
+  --th-frozen: #586c82;
+  --th-frozen-soft: #eaf0f5;
   --th-clay: #b0563c;
 }
 :root[data-theme="dark"] {
-  --th-paper: #131a19;
-  --th-sheet: #1b2422;
-  --th-ink: #e2ebe8;
-  --th-line: #2c3a37;
+  --th-paper: #11181d;
+  --th-sheet: #182127;
+  --th-ink: #e5ecef;
+  --th-line: #2d3a42;
   --th-accent: #7ecfc0;
-  --th-accent-soft: #1e332f;
+  --th-accent-soft: #1d3530;
   --th-on-accent: #10151c;
   --th-review: #d4a72c;
   --th-review-soft: #372c12;
@@ -87,6 +85,209 @@
   --color-neutral-800: #2c343e;
   --color-neutral-900: #1f242c;
   --color-neutral-950: #12161b;
+}
+
+@layer components {
+  .sp-page {
+    width: 100%;
+    max-width: 90rem;
+    margin-inline: auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  .sp-page-narrow {
+    width: 100%;
+    max-width: 72rem;
+    margin-inline: auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  .sp-page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--th-line);
+  }
+
+  .sp-eyebrow {
+    color: var(--color-neutral-500);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .sp-title {
+    margin-top: 0.25rem;
+    color: var(--th-ink);
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    font-weight: 750;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+  }
+
+  .sp-subtitle {
+    max-width: 46rem;
+    margin-top: 0.5rem;
+    color: var(--color-neutral-500);
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+
+  .sp-panel {
+    overflow: hidden;
+    border: 1px solid var(--th-line);
+    border-radius: 0.625rem;
+    background: var(--th-sheet);
+    box-shadow: 0 4px 16px rgb(23 33 45 / 0.035);
+  }
+
+  .sp-panel-header {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--th-line);
+    background: color-mix(in srgb, var(--th-paper) 48%, var(--th-sheet));
+    padding: 0.65rem 1rem;
+  }
+
+  .sp-section-title {
+    color: var(--th-ink);
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  .sp-section-copy {
+    margin-top: 0.15rem;
+    color: var(--color-neutral-500);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+  }
+
+  .sp-btn {
+    display: inline-flex;
+    min-height: 2.375rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid var(--th-line);
+    border-radius: 0.5rem;
+    background: var(--th-sheet);
+    padding: 0.55rem 0.85rem;
+    color: var(--th-ink);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .sp-btn:hover {
+    border-color: color-mix(in srgb, var(--th-accent) 35%, var(--th-line));
+    background: color-mix(in srgb, var(--th-accent-soft) 45%, var(--th-sheet));
+  }
+
+  .sp-btn-primary {
+    border-color: var(--th-accent);
+    background: var(--th-accent);
+    color: var(--th-on-accent);
+  }
+
+  .sp-btn-primary:hover {
+    border-color: var(--th-accent);
+    background: color-mix(in srgb, var(--th-accent) 88%, black);
+  }
+
+  .sp-btn-ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--color-neutral-500);
+  }
+
+  .sp-btn-sm {
+    min-height: 2rem;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  .sp-input {
+    width: 100%;
+    border: 1px solid var(--th-line);
+    border-radius: 0.5rem;
+    background: transparent;
+    padding: 0.6rem 0.75rem;
+    color: var(--th-ink);
+    font-size: 0.875rem;
+  }
+
+  .sp-input::placeholder {
+    color: var(--color-neutral-400);
+  }
+
+  .sp-input:focus {
+    border-color: color-mix(in srgb, var(--th-accent) 55%, var(--th-line));
+    outline: 3px solid color-mix(in srgb, var(--th-accent-soft) 70%, transparent);
+    outline-offset: 1px;
+  }
+
+  .sp-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    color: var(--color-neutral-500);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .sp-row {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  .sp-row:hover {
+    background: color-mix(in srgb, var(--th-accent-soft) 24%, var(--th-sheet));
+  }
+
+  .sp-status {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--th-line);
+    border-radius: 999px;
+    padding: 0.2rem 0.5rem;
+    color: var(--color-neutral-500);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .sp-status-accent {
+    border-color: color-mix(in srgb, var(--th-accent) 28%, var(--th-line));
+    background: var(--th-accent-soft);
+    color: var(--th-accent);
+  }
+
+  .sp-status-review {
+    border-color: color-mix(in srgb, var(--th-review) 32%, var(--th-line));
+    background: var(--th-review-soft);
+    color: var(--th-review);
+  }
+
+  .sp-status-frozen {
+    border-color: color-mix(in srgb, var(--th-frozen) 30%, var(--th-line));
+    background: var(--th-frozen-soft);
+    color: var(--th-frozen);
+  }
+}
+
+@media (max-width: 640px) {
+  .sp-page,
+  .sp-page-narrow {
+    padding: 1.5rem 1rem 3.5rem;
+  }
 }
 
 /* Ask-AI composer pop (#31) — mirrors the panel's centered translate. */

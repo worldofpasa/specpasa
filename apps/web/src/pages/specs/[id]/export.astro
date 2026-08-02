@@ -5,7 +5,7 @@ import Base from "../../../layouts/Base.astro";
 import { getMembership } from "../../../lib/auth";
 import { and, eq, getDb, schema } from "../../../lib/db";
 import { getGitHubIntegration, getSpecContext, type GitHubIntegrationConfig } from "../../../lib/integrations";
-import { pageTitle, t } from "../../../lib/strings";
+import { t } from "../../../lib/strings";
 
 const db = getDb();
 const specContext = await getSpecContext(Astro.params.id!);
@@ -19,9 +19,12 @@ const structureResult = Astro.getActionResult(actions.structureEpics);
 if (structureResult && !structureResult.error) {
   // Carry the replaced-ledger count through the PRG redirect so the page can
   // tell the user that previously exported issues no longer map to epics.
-  const replaced = structureResult.data.replacedIssues;
   return Astro.redirect(
-    `/specs/${spec.id}/export${replaced > 0 ? `?restructured=${replaced}` : ""}`,
+    `/specs/${spec.id}/export${
+      structureResult.data.replacedIssues > 0
+        ? `?restructured=${structureResult.data.replacedIssues}`
+        : ""
+    }`,
   );
 }
 const prgResult =
@@ -83,26 +86,30 @@ const exportRecords = integration
 ---
 
 <Base title={t.export.title(spec.title)}>
-  <main class="mx-auto max-w-4xl px-6 py-10">
-    <nav class="text-xs text-neutral-500">
-      <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a> / {t.export.crumb}
-    </nav>
-    <h1 class="mt-1 flex items-center gap-3 text-2xl font-bold tracking-tight">
-      {t.export.heading}
-      <span class="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
-        {t.phases.label(spec.phase)}
-      </span>
-      <span
-        class:list={[
-          "rounded border px-1.5 py-0.5 text-[11px] font-medium",
-          spec.status === "in_review" && "border-review text-review",
-          spec.status === "frozen" && "border-frozen text-frozen",
-          spec.status === "draft" && "border-line text-neutral-500",
-        ]}
-      >
-        {t.lifecycle.statusName(spec.status)}
-      </span>
-    </h1>
+  <main class="sp-page-narrow">
+    <header class="sp-page-header">
+      <div>
+        <nav class="sp-eyebrow">
+          <a href={`/specs/${spec.id}`} class="hover:text-accent">{spec.title}</a>
+          <span class="px-1 text-neutral-300">/</span>
+          {t.export.crumb}
+        </nav>
+        <h1 class="sp-title flex flex-wrap items-center gap-3">
+          {t.export.heading}
+          <span class="sp-status sp-status-accent">{t.phases.label(spec.phase)}</span>
+          <span
+            class:list={[
+              "sp-status",
+              spec.status === "in_review" && "sp-status-review",
+              spec.status === "frozen" && "sp-status-frozen",
+            ]}
+          >
+            {t.lifecycle.statusName(spec.status)}
+          </span>
+        </h1>
+      </div>
+      <a href={`/specs/${spec.id}`} class="sp-btn">{t.versions.backToWorkspace}</a>
+    </header>
 
     {actionError && <p class="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{actionError.message}</p>}
     {
@@ -131,16 +138,18 @@ const exportRecords = integration
 
     {
       integration && (
-        <section class="mt-6 rounded border border-line bg-sheet p-4">
-          <h2 class="text-xs font-semibold text-neutral-500">
-            {t.export.docHeading}
-          </h2>
-          <p class="mt-1 text-xs text-neutral-500">{t.export.docExplainer(repoLabel)}</p>
-          <form method="POST" action={actions.exportDocument} class="mt-3">
+        <section class="sp-panel mt-6">
+          <div class="sp-panel-header">
+            <div>
+              <h2 class="sp-section-title">{t.export.docHeading}</h2>
+              <p class="sp-section-copy">{t.export.docExplainer(repoLabel)}</p>
+            </div>
+          </div>
+          <form method="POST" action={actions.exportDocument} class="p-4">
             <input type="hidden" name="specId" value={spec.id} />
             <button
               disabled={!frozen || !editor}
-              class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
+              class="sp-btn sp-btn-primary disabled:opacity-40"
             >
               {t.export.docButton}
             </button>
@@ -151,17 +160,20 @@ const exportRecords = integration
 
     {
       integration && isTasks && (
-        <section class="mt-6 rounded border border-line bg-sheet p-4">
-          <h2 class="text-xs font-semibold text-neutral-500">
-            {t.export.tasksHeading}
-          </h2>
-          <p class="mt-1 text-xs text-neutral-500">{t.export.tasksExplainer}</p>
+        <section class="sp-panel mt-6">
+          <div class="sp-panel-header">
+            <div>
+              <h2 class="sp-section-title">{t.export.tasksHeading}</h2>
+              <p class="sp-section-copy">{t.export.tasksExplainer}</p>
+            </div>
+          </div>
+          <div class="p-4">
 
           <form method="POST" action={actions.structureEpics} class="mt-3">
             <input type="hidden" name="specId" value={spec.id} />
             <button
               disabled={!editor || !spec.current_version_id}
-              class="rounded border border-line px-4 py-2 text-sm font-semibold hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-800"
+              class="sp-btn disabled:opacity-40"
             >
               {epics.length ? t.export.restructureButton : t.export.structureButton}
             </button>
@@ -198,22 +210,23 @@ const exportRecords = integration
             <input type="hidden" name="specId" value={spec.id} />
             <button
               disabled={!frozen || !editor || epics.length === 0}
-              class="rounded bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-40"
+              class="sp-btn sp-btn-primary disabled:opacity-40"
             >
               {t.export.tasksButton}
             </button>
           </form>
+          </div>
         </section>
       )
     }
 
-    <section class="mt-6 rounded border border-line bg-sheet">
-      <h2
-        class="border-b border-line px-4 py-2.5 text-xs font-semibold text-neutral-500"
-      >
-        {t.export.exportedHeading}
-      </h2>
-      <p class="px-4 pt-3 text-xs text-neutral-500">{t.export.reExportNote}</p>
+    <section class="sp-panel mt-6">
+      <div class="sp-panel-header">
+        <div>
+          <h2 class="sp-section-title">{t.export.exportedHeading}</h2>
+          <p class="sp-section-copy">{t.export.reExportNote}</p>
+        </div>
+      </div>
       <ul class="divide-y divide-line pt-2">
         {
           exportRecords.map(({ record, version }) => (
